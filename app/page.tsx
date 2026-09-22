@@ -1,0 +1,81 @@
+import Link from 'next/link';
+import { Activity, ArrowRight, Camera, Check, Sparkles, Users } from 'lucide-react';
+
+const previewRows = [
+  { label: 'Today\'s weight', value: '84.6', unit: 'kg', tone: 'accent' },
+  { label: 'This month', value: '−2.4', unit: 'kg', tone: 'muted' },
+  { label: 'Day streak', value: '12', unit: 'days', tone: 'muted' },
+];
+
+export default function LandingPage() {
+  return (
+    <main className="landing-page">
+      <div className="landing-noise" aria-hidden="true" />
+      <header className="site-header page-gutter">
+        <Link href="/" className="brand-mark" aria-label="Healthy home">
+          <span className="brand-dot" aria-hidden="true" />
+          Healthy
+        </Link>
+        <nav className="header-nav" aria-label="Main navigation">
+          <Link href="/login" className="header-link">Log in</Link>
+          <Link href="/register" className="header-cta">Start your journey <ArrowRight size={16} aria-hidden="true" /></Link>
+        </nav>
+      </header>
+
+      <section className="landing-hero page-gutter" aria-labelledby="hero-title">
+        <div className="hero-copy">
+          <p className="eyebrow"><span className="eyebrow-line" /> A quiet space to keep going</p>
+          <h1 id="hero-title">Every day,<br /><em>one step</em> lighter.</h1>
+          <p className="hero-description">
+            Log your weight, see the trend, and build a record that reminds you how far you have come.
+          </p>
+          <div className="hero-actions">
+            <Link href="/register" className="button button-primary">Begin my journey <ArrowRight size={18} aria-hidden="true" /></Link>
+            <Link href="/login" className="text-link">I already have an account</Link>
+          </div>
+          <div className="hero-note"><Check size={15} aria-hidden="true" /> This demo keeps your data on this device.</div>
+        </div>
+
+        <div className="hero-preview" aria-label="Healthy dashboard preview">
+          <div className="preview-topline">
+            <span className="mono-label">TODAY / SEP 22</span>
+            <span className="preview-status"><span className="status-dot" /> On track</span>
+          </div>
+          <div className="preview-heading">
+            <span className="preview-greeting">Good morning, Alex</span>
+            <strong>Steady looks good.</strong>
+          </div>
+          <div className="preview-chart" aria-hidden="true">
+            <div className="chart-grid grid-one" /><div className="chart-grid grid-two" /><div className="chart-grid grid-three" />
+            <svg viewBox="0 0 420 150" role="presentation" preserveAspectRatio="none">
+              <path d="M0 35 C35 50 45 20 78 45 S120 84 152 66 S198 32 226 64 S270 74 300 89 S344 78 372 105 S403 96 420 116" fill="none" stroke="currentColor" strokeWidth="3" />
+              <circle cx="420" cy="116" r="5" fill="var(--accent)" />
+            </svg>
+            <span className="chart-latest">−4.8 kg</span>
+          </div>
+          <div className="preview-stat-grid">
+            {previewRows.map((row) => (
+              <div className={`preview-stat ${row.tone}`} key={row.label}>
+                <span>{row.label}</span>
+                <strong>{row.value} <small>{row.unit}</small></strong>
+              </div>
+            ))}
+          </div>
+          <div className="preview-footer"><span>Last check-in: today, 7:40 AM</span><span className="preview-arrow">↗</span></div>
+        </div>
+      </section>
+
+      <section className="feature-strip page-gutter" aria-labelledby="feature-title">
+        <div className="section-kicker"><span className="mono-label">WHY HEALTHY</span><span className="section-rule" /></div>
+        <h2 id="feature-title">Small, but <span>real.</span></h2>
+        <div className="feature-grid">
+          <article className="feature-card"><div className="feature-icon"><Activity size={20} aria-hidden="true" /></div><h3>Trend over obsession</h3><p>A simple chart that shows the story of your weeks, not just one reading.</p></article>
+          <article className="feature-card"><div className="feature-icon"><Camera size={20} aria-hidden="true" /></div><h3>Proof in pictures</h3><p>Add one monthly photo and notice what the scale cannot always tell you.</p></article>
+          <article className="feature-card"><div className="feature-icon"><Users size={20} aria-hidden="true" /></div><h3>Quiet encouragement</h3><p>Share meaningful wins with the community and leave a little encouragement behind.</p></article>
+        </div>
+      </section>
+
+      <footer className="landing-footer page-gutter"><span><Sparkles size={15} aria-hidden="true" /> Made for a personal pace</span><span className="mono-label">HEALTHY / 2026</span></footer>
+    </main>
+  );
+}

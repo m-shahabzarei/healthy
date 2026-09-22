@@ -1,0 +1,12 @@
+{
+  "name": "Healthy — Your weight, your pace",
+  "short_name": "Healthy",
+  "description": "Daily weight tracking, progress photos, and quiet encouragement",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080808",
+  "theme_color": "#080808",
+  "lang": "en",
+  "dir": "ltr",
+  "icons": []
+}

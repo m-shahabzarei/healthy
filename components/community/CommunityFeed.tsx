@@ -1,0 +1,206 @@
+'use client';
+
+import Link from 'next/link';
+import { ArrowRight, Filter, HeartHandshake, Users } from 'lucide-react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
+import {
+  getReactionForUser,
+  getServerSnapshot,
+  getSnapshot,
+  saveSnapshot,
+  subscribe,
+  toggleReaction,
+} from '@/lib/store';
+import type { CommunityPost } from '@/lib/types';
+import { buildDailyActivity } from '@/lib/activity';
+import ProgressPost from './ProgressPost';
+import type { CommunityReaction } from './ReactionBar';
+
+export type CommunityFilter = 'all' | 'weight_loss' | 'records' | 'photo';
+
+const FILTERS: ReadonlyArray<{ key: CommunityFilter; label: string }> = [
+  { key: 'all', label: 'All' },
+  { key: 'weight_loss', label: 'Weight loss' },
+  { key: 'records', label: 'Records' },
+  { key: 'photo', label: 'Photos' },
+];
+
+const reactionCopy: Record<CommunityReaction, { on: string; off: string }> = {
+  encourage: { on: 'Encouragement added.', off: 'Encouragement removed.' },
+  celebrate: { on: 'Celebration added.', off: 'Celebration removed.' },
+  fire: { on: 'Fire reaction added.', off: 'Fire reaction removed.' },
+};
+
+function sortPosts(posts: CommunityPost[]): CommunityPost[] {
+  return posts.slice().sort((a, b) => {
+    const date = b.date.localeCompare(a.date);
+    return date || b.createdAt.localeCompare(a.createdAt);
+  });
+}
+
+function mergePosts(stored: CommunityPost[], generated: CommunityPost[]): CommunityPost[] {
+  const result: CommunityPost[] = [];
+  const ids = new Set<string>();
+  const keys = new Set<string>();
+  [...stored, ...generated].forEach((post) => {
+    if (ids.has(post.id) || (post.activityKey && keys.has(post.activityKey))) return;
+    ids.add(post.id);
+    if (post.activityKey) keys.add(post.activityKey);
+    result.push(post);
+  });
+  return sortPosts(result);
+}
+
+function matchesFilter(post: CommunityPost, filter: CommunityFilter): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'weight_loss') return post.type === 'weight_loss';
+  if (filter === 'photo') return post.type === 'photo';
+  return post.type === 'streak' || post.type === 'goal_milestone' || post.type === 'milestone';
+}
+
+function filterEmptyCopy(filter: CommunityFilter): string {
+  switch (filter) {
+    case 'weight_loss':
+      return 'When your latest check-in is lighter, that small win will appear here.';
+    case 'records':
+      return 'A seven-day streak or a goal milestone will show up here.';
+    case 'photo':
+      return 'Monthly photos you choose to share with the feed appear here.';
+    default:
+      return 'No activity yet. Log your first check-in from the dashboard.';
+  }
+}
+
+/** Community activity stream with local persistence and a deliberately small filter surface. */
+export function CommunityFeed() {
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const [filter, setFilter] = useState<CommunityFilter>('all');
+  const [announcement, setAnnouncement] = useState('');
+
+  const posts = useMemo(
+    () => mergePosts(snapshot.posts, buildDailyActivity(snapshot)),
+    [snapshot],
+  );
+  const visiblePosts = useMemo(
+    () => posts.filter((post) => matchesFilter(post, filter)),
+    [filter, posts],
+  );
+
+  function handleReact(post: CommunityPost, reaction: CommunityReaction) {
+    // New automatic events are derived from current state and therefore do
+    // not exist in `snapshot.posts` yet. Persist that post at first interaction
+    // so the existing store reaction API can address it and survive reloads.
+    const latest = getSnapshot();
+    const alreadyStored = latest.posts.some(
+      (candidate) => candidate.id === post.id || (post.activityKey && candidate.activityKey === post.activityKey),
+    );
+    if (!alreadyStored) {
+      saveSnapshot({ ...latest, posts: [...latest.posts, post] });
+    }
+
+    const result = toggleReaction(post.id, reaction);
+    if (!result.ok) {
+      setAnnouncement(result.error || 'Reaction could not be saved. Try again.');
+      return;
+    }
+    setAnnouncement(result.active ? reactionCopy[reaction].on : reactionCopy[reaction].off);
+  }
+
+  return (
+    <div className="community-page app-container" dir="ltr">
+      <header className="community-header">
+        <div>
+          <p className="eyebrow"><span className="eyebrow-line" /> Together, steady and kind</p>
+          <h1 className="page-title">Our circle.</h1>
+          <p className="page-subtitle">Small wins from the Healthy community, for the days you need a little extra momentum.</p>
+        </div>
+        <div className="community-count" aria-label={`${posts.length} activities in the feed`}>
+          <Users size={18} aria-hidden="true" />
+          <strong>{new Intl.NumberFormat('en-US').format(posts.length)}</strong>
+          <span>activities</span>
+        </div>
+      </header>
+
+      <section className="community-note surface-muted" aria-label="Feed guidance">
+        <span className="community-note-icon" aria-hidden="true"><HeartHandshake size={20} /></span>
+        <div><strong>No comparisons here.</strong><p>Every check-in is proof that you kept going. Leave a simple reaction when someone needs support.</p></div>
+      </section>
+
+      <div className="community-toolbar">
+        <div className="community-filters" role="group" aria-label="Filter activities">
+          <Filter size={15} aria-hidden="true" />
+          {FILTERS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className={`community-filter ${filter === item.key ? 'active' : ''}`}
+              aria-pressed={filter === item.key}
+              onClick={() => setFilter(item.key)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <span className="community-result-count">{new Intl.NumberFormat('en-US').format(visiblePosts.length)} items</span>
+      </div>
+
+      <p className="community-announcement" role="status" aria-live="polite">{announcement}</p>
+
+      {visiblePosts.length ? (
+        <section className="community-list" aria-label="Community progress feed">
+          {visiblePosts.map((post) => {
+            const active = getReactionForUser(post.id, snapshot.currentUser?.id, snapshot);
+            return (
+              <ProgressPost
+                key={post.id}
+                post={post}
+                activeReaction={active?.type === 'encourage' || active?.type === 'celebrate' || active?.type === 'fire' ? active.type : null}
+                onReact={(reaction) => handleReact(post, reaction)}
+              />
+            );
+          })}
+        </section>
+      ) : (
+        <section className="community-empty empty-state">
+          <strong>Nothing to show yet.</strong>
+          <p>{filterEmptyCopy(filter)}</p>
+          <Link href="/dashboard" className="button button-ghost"><ArrowRight size={16} aria-hidden="true" /> Log today&apos;s weight</Link>
+        </section>
+      )}
+
+      <style jsx global>{`
+        .community-page { max-width: 900px; }
+        .community-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 22px; margin-bottom: 28px; }
+        .community-header .eyebrow { margin: 0 0 16px; font-size: 17px; }
+        .community-count { min-width: 105px; display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 8px; row-gap: 0; padding: 12px 14px; border: 1px solid var(--line, #333333); color: var(--ink-faint, #999999); }
+        .community-count svg { grid-row: span 2; color: var(--accent, #f7f7f7); }
+        .community-count strong { color: var(--ink, #f7f7f7); font-family: 'Space Grotesk', sans-serif; font-size: 27px; line-height: .9; }
+        .community-count span { font-size: 10px; }
+        .community-note { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; margin-bottom: 25px; }
+        .community-note-icon { width: 34px; height: 34px; display: grid; place-items: center; flex: 0 0 auto; border: 1px solid var(--line-strong, #626262); color: var(--accent, #f7f7f7); }
+        .community-note strong { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 21px; font-weight: 600; line-height: 1.1; }
+        .community-note p { margin: 3px 0 0; color: var(--ink-soft, #c5c5c5); font-size: 12px; line-height: 1.8; }
+        .community-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
+        .community-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+        .community-filters > svg { margin-inline-end: 2px; color: var(--ink-faint); }
+        .community-filter { min-height: 44px; padding: 6px 12px; border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--ink-faint, #999999); font: inherit; font-size: 11px; transition: color .2s var(--ease), border-color .2s var(--ease), background .2s var(--ease); }
+        .community-filter:hover { color: var(--ink, #f7f7f7); border-color: var(--line-strong, #626262); }
+        .community-filter.active { border-color: var(--line-strong, #626262); background: var(--surface, #121212); color: var(--ink, #f7f7f7); }
+        .community-result-count { color: var(--ink-faint, #999999); font-size: 10px; white-space: nowrap; }
+        .community-announcement { min-height: 19px; margin: 0 0 10px; color: var(--success, #e2e2e2); font-size: 11px; }
+        .community-list { display: grid; gap: 12px; }
+        .community-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 42px 20px; }
+        .community-empty .button { margin-top: 12px; }
+        @media (max-width: 600px) {
+          .community-header { align-items: flex-start; flex-direction: column; gap: 17px; }
+          .community-count { align-self: flex-start; }
+          .community-note { padding-inline: 14px; }
+          .community-toolbar { align-items: flex-start; flex-direction: column; gap: 8px; }
+          .community-result-count { align-self: flex-end; margin-top: -5px; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+export default CommunityFeed;
