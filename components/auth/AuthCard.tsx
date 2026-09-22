@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, Check, ShieldCheck } from 'lucide-react';
+import { ArrowRight, ShieldCheck } from 'lucide-react';
 
 type AuthCardProps = {
   mode: 'login' | 'register';
@@ -12,15 +12,6 @@ export function AuthCard({ mode, children }: AuthCardProps) {
   return (
     <main className="auth-page">
       <div className="auth-grid page-gutter">
-        <section className="auth-intro" aria-labelledby="auth-title">
-          <Link href="/" className="brand-mark" aria-label="Healthy home"><span className="brand-dot" aria-hidden="true" />Healthy</Link>
-          <div className="auth-intro-copy">
-            <p className="eyebrow"><span className="eyebrow-line" /> A quiet place to keep going</p>
-            <h1 id="auth-title">You don&apos;t<br />have to be <em>perfect.</em></h1>
-            <p>Just show up for today. Tomorrow builds on the small things you record now.</p>
-          </div>
-          <div className="auth-promise"><Check size={16} aria-hidden="true" /><span>No noise. No pressure to compare.</span></div>
-        </section>
         <section className="auth-panel surface" aria-label={isLogin ? 'Login form' : 'Registration form'}>
           <div className="auth-panel-head">
             <div>
