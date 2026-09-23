@@ -33,16 +33,16 @@ export default function LandingPage() {
             <Link href="/register" className="button button-primary">Begin my journey <ArrowRight size={18} aria-hidden="true" /></Link>
             <Link href="/login" className="text-link">I already have an account</Link>
           </div>
-          <div className="hero-note"><Check size={15} aria-hidden="true" /> This demo keeps your data on this device.</div>
+          <div className="hero-note"><Check size={15} aria-hidden="true" /> Your real check-ins stay synced to your account.</div>
         </div>
 
         <div className="hero-preview" aria-label="Healthy dashboard preview">
           <div className="preview-topline">
-            <span className="mono-label">TODAY / SEP 22</span>
+            <span className="mono-label">YOUR JOURNEY / TODAY</span>
             <span className="preview-status"><span className="status-dot" /> On track</span>
           </div>
           <div className="preview-heading">
-            <span className="preview-greeting">Good morning, Alex</span>
+            <span className="preview-greeting">Good morning, you</span>
             <strong>Steady looks good.</strong>
           </div>
           <div className="preview-chart" aria-hidden="true">

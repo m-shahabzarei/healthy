@@ -45,7 +45,7 @@ export interface HostedSession {
 }
 
 export interface HostedRegisterInput {
-  /** Supabase Auth requires a real email or phone identity; no fake email is generated. */
+  /** Legacy adapter input; the runtime registration route uses an internal username identity. */
   email: string;
   password: string;
   username: string;
@@ -123,6 +123,14 @@ export interface SupabaseProfileRow {
   updated_at: string;
 }
 
+/** Public-safe profile projection returned by list_feed_profiles(). */
+export interface SupabaseFeedProfileRow {
+  id: string;
+  username: string;
+  display_name: string;
+  created_at: string;
+}
+
 export interface SupabaseWeightRow {
   id: string;
   user_id: string;
@@ -170,4 +178,3 @@ export interface SupabaseRpcReactionResult {
   reaction_id?: string | null;
   created_at?: string | null;
 }
-

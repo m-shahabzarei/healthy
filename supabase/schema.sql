@@ -53,7 +53,7 @@ create table if not exists public.posts (
   metric_value numeric(8,2),
   metric_label text check (metric_label is null or char_length(metric_label) <= 60),
   activity_key text,
-  generated boolean not null default true,
+  generated boolean not null default false,
   created_at timestamptz not null default timezone('utc', now())
 );
 
@@ -73,6 +73,65 @@ create index if not exists weights_user_date_idx on public.weights (user_id, rec
 create index if not exists photos_user_date_idx on public.photos (user_id, taken_on desc);
 create index if not exists posts_feed_date_idx on public.posts (occurred_on desc, created_at desc);
 create index if not exists reactions_post_idx on public.reactions (post_id);
+
+-- Generated activity is opt-in at the database function, never the default
+-- for a browser-created post. ALTER also upgrades installations made from an
+-- earlier version of this file.
+alter table public.posts alter column generated set default false;
+
+-- CREATE TABLE IF NOT EXISTS does not add new constraints to an existing
+-- installation. Add the cross-column invariants explicitly and by name so
+-- this migration remains safe to run again as the schema evolves.
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.profiles'::regclass
+      and conname = 'profiles_goal_below_start_check'
+  ) then
+    alter table public.profiles
+      add constraint profiles_goal_below_start_check
+      check (
+        start_weight_kg is null
+        or goal_weight_kg is null
+        or goal_weight_kg < start_weight_kg
+      ) not valid;
+  end if;
+
+  if not exists (
+    select 1
+    from public.profiles
+    where start_weight_kg is not null
+      and goal_weight_kg is not null
+      and goal_weight_kg >= start_weight_kg
+  ) then
+    alter table public.profiles
+      validate constraint profiles_goal_below_start_check;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.profiles'::regclass
+      and conname = 'profiles_target_not_before_start_check'
+  ) then
+    alter table public.profiles
+      add constraint profiles_target_not_before_start_check
+      check (target_date is null or target_date >= start_date) not valid;
+  end if;
+
+  if not exists (
+    select 1
+    from public.profiles
+    where target_date is not null and target_date < start_date
+  ) then
+    alter table public.profiles
+      validate constraint profiles_target_not_before_start_check;
+  end if;
+
+end
+$$;
 
 -- Keep profile timestamps correct when a profile is edited.
 create or replace function public.set_updated_at()
@@ -128,6 +187,25 @@ begin
     coalesce(lower(metadata->>'feed_opt_in') in ('true', 't', '1', 'yes'), false)
   )
   on conflict (id) do nothing;
+
+  -- Day-one weight belongs to the same transaction as the Auth user and
+  -- profile. The hosted client repeats this as an idempotent upsert, but a
+  -- network interruption can no longer leave a half-created account.
+  if raw_start ~ '^[0-9]+([.][0-9]+)?$'
+    and raw_start::numeric between 20 and 400 then
+    insert into public.weights (user_id, recorded_on, weight_kg)
+    values (
+      new.id,
+      case
+        when raw_start_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then raw_start_date::date
+        else current_date
+      end,
+      raw_start::numeric
+    )
+    on conflict (user_id, recorded_on) do update
+    set weight_kg = excluded.weight_kg;
+  end if;
+
   return new;
 end;
 $$;
@@ -137,14 +215,349 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_user();
 
+-- Rebuild every automatic feed event from canonical profile, weight, and photo
+-- data. The function is deliberately not callable by browser roles: source
+-- table triggers are the only writers of generated posts.
+create or replace function public.rebuild_generated_posts(p_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+declare
+  profile_row public.profiles%rowtype;
+  activity record;
+  supported_keys text[] := '{}'::text[];
+begin
+  if p_user_id is null then
+    return;
+  end if;
+
+  -- Serialize rebuilds for one member. This prevents two concurrent source
+  -- writes from reconciling against different snapshots and dropping an event.
+  perform pg_advisory_xact_lock(hashtextextended(p_user_id::text, 0));
+
+  select *
+  into profile_row
+  from public.profiles
+  where id = p_user_id;
+
+  if not found then
+    delete from public.posts
+    where user_id = p_user_id and generated = true;
+    return;
+  end if;
+
+  for activity in
+    with ordered_weights as (
+      select
+        w.id,
+        w.recorded_on,
+        w.weight_kg,
+        w.created_at,
+        lag(w.recorded_on) over weight_order as previous_on,
+        lag(w.weight_kg) over weight_order as previous_weight_kg
+      from public.weights w
+      where w.user_id = p_user_id
+      window weight_order as (order by w.recorded_on, w.created_at, w.id)
+    ),
+    grouped_weights as (
+      select
+        ow.*,
+        sum(
+          case when ow.previous_on = ow.recorded_on - 1 then 0 else 1 end
+        ) over (order by ow.recorded_on, ow.created_at, ow.id) as run_group
+      from ordered_weights ow
+    ),
+    weight_runs as (
+      select
+        gw.*,
+        row_number() over (
+          partition by gw.run_group
+          order by gw.recorded_on, gw.created_at, gw.id
+        ) as run_length
+      from grouped_weights gw
+    ),
+    weight_metrics as (
+      select
+        wr.*,
+        floor(
+          least(
+            greatest(profile_row.start_weight_kg - profile_row.goal_weight_kg, 0),
+            greatest(profile_row.start_weight_kg - wr.weight_kg, 0)
+          ) + 0.00000001
+        )::integer as reached_kg,
+        floor(
+          least(
+            greatest(profile_row.start_weight_kg - profile_row.goal_weight_kg, 0),
+            greatest(
+              profile_row.start_weight_kg
+                - coalesce(wr.previous_weight_kg, profile_row.start_weight_kg),
+              0
+            )
+          ) + 0.00000001
+        )::integer as previously_reached_kg
+      from weight_runs wr
+      where profile_row.start_weight_kg is not null
+        and profile_row.goal_weight_kg is not null
+        and profile_row.start_weight_kg > profile_row.goal_weight_kg
+    ),
+    first_feed_photos as (
+      select ranked.*
+      from (
+        select
+          ph.id,
+          ph.taken_on,
+          ph.created_at,
+          to_char(ph.taken_on, 'YYYY-MM') as calendar_month,
+          row_number() over (
+            partition by date_trunc('month', ph.taken_on::timestamp)
+            order by ph.taken_on, ph.created_at, ph.id
+          ) as month_position
+        from public.photos ph
+        where ph.user_id = p_user_id
+          and ph.visibility = 'feed'
+      ) ranked
+      where ranked.month_position = 1
+    ),
+    candidates as (
+      select
+        'weight_loss'::text as type,
+        wr.recorded_on as occurred_on,
+        wr.created_at,
+        'Today I am '
+          || round(abs(wr.weight_kg - wr.previous_weight_kg), 1)::text
+          || ' kg lighter; steady progress continues.' as body,
+        'A little lighter'::text as title,
+        round(wr.weight_kg - wr.previous_weight_kg, 1)::numeric as metric_value,
+        'kg lost'::text as metric_label,
+        p_user_id::text || ':weight-loss:' || wr.recorded_on::text as activity_key
+      from weight_runs wr
+      where wr.previous_on = wr.recorded_on - 1
+        and wr.previous_weight_kg - wr.weight_kg >= 0.1
+
+      union all
+
+      select
+        'streak'::text,
+        wr.recorded_on,
+        wr.created_at,
+        wr.run_length::text
+          || '-day weigh-in streak complete. Consistency beats perfection.',
+        'Consistency streak'::text,
+        wr.run_length::numeric,
+        'day streak'::text,
+        p_user_id::text || ':streak:' || wr.run_length::text || ':' || wr.recorded_on::text
+      from weight_runs wr
+      where wr.run_length >= 7
+        and mod(wr.run_length, 7) = 0
+
+      union all
+
+      select
+        'goal_milestone'::text,
+        wm.recorded_on,
+        wm.created_at,
+        'I have lost '
+          || wm.reached_kg::text
+          || ' kg toward my goal; small steps add up.',
+        'A meaningful milestone'::text,
+        wm.reached_kg::numeric,
+        'kg lost'::text,
+        p_user_id::text || ':goal:' || wm.reached_kg::text || ':' || wm.recorded_on::text
+      from weight_metrics wm
+      where wm.reached_kg > 0
+        and wm.reached_kg > wm.previously_reached_kg
+
+      union all
+
+      select
+        'photo'::text,
+        fp.taken_on,
+        fp.created_at,
+        'I added a new progress photo; small changes deserve to be seen.'::text,
+        'Visual proof'::text,
+        null::numeric,
+        'progress photo'::text,
+        p_user_id::text || ':photo:' || fp.calendar_month
+      from first_feed_photos fp
+    )
+    select *
+    from candidates
+    order by occurred_on, created_at, activity_key
+  loop
+    supported_keys := array_append(supported_keys, activity.activity_key);
+
+    insert into public.posts (
+      user_id,
+      type,
+      occurred_on,
+      body,
+      title,
+      metric_value,
+      metric_label,
+      activity_key,
+      generated,
+      created_at
+    ) values (
+      p_user_id,
+      activity.type,
+      activity.occurred_on,
+      activity.body,
+      activity.title,
+      activity.metric_value,
+      activity.metric_label,
+      activity.activity_key,
+      true,
+      activity.created_at
+    )
+    on conflict (user_id, activity_key) do update
+    set
+      type = excluded.type,
+      occurred_on = excluded.occurred_on,
+      body = excluded.body,
+      title = excluded.title,
+      metric_value = excluded.metric_value,
+      metric_label = excluded.metric_label,
+      generated = true,
+      created_at = excluded.created_at;
+  end loop;
+
+  delete from public.posts
+  where user_id = p_user_id
+    and generated = true
+    and (
+      activity_key is null
+      or cardinality(supported_keys) = 0
+      or not (activity_key = any(supported_keys))
+    );
+end;
+$$;
+
+revoke all on function public.rebuild_generated_posts(uuid) from public, anon, authenticated;
+grant execute on function public.rebuild_generated_posts(uuid) to service_role;
+
+create or replace function public.reconcile_generated_posts_from_source()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+declare
+  old_user_id uuid;
+  new_user_id uuid;
+begin
+  if tg_table_name = 'profiles' then
+    old_user_id := case when tg_op = 'INSERT' then null else old.id end;
+    new_user_id := case when tg_op = 'DELETE' then null else new.id end;
+  else
+    old_user_id := case when tg_op = 'INSERT' then null else old.user_id end;
+    new_user_id := case when tg_op = 'DELETE' then null else new.user_id end;
+  end if;
+
+  if old_user_id is not null and old_user_id is distinct from new_user_id then
+    perform public.rebuild_generated_posts(old_user_id);
+  end if;
+  if new_user_id is not null then
+    perform public.rebuild_generated_posts(new_user_id);
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.reconcile_generated_posts_from_source() from public, anon, authenticated;
+
+-- Keep private goal data out of community-profile lookups. Policies use the
+-- boolean helper, while the feed adapter receives only these four safe fields.
+create or replace function public.feed_profile_is_visible(p_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = pg_catalog, public
+as $$
+  select (select auth.uid()) is not null
+    and exists (
+      select 1
+      from public.profiles p
+      where p.id = p_user_id and p.feed_opt_in = true
+    );
+$$;
+
+revoke all on function public.feed_profile_is_visible(uuid) from public, anon, authenticated;
+grant execute on function public.feed_profile_is_visible(uuid) to authenticated;
+
+create or replace function public.list_feed_profiles(p_user_ids uuid[])
+returns table (
+  id uuid,
+  username text,
+  display_name text,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = pg_catalog, public
+as $$
+  select p.id, p.username, p.display_name, p.created_at
+  from public.profiles p
+  where (select auth.uid()) is not null
+    and cardinality(coalesce(p_user_ids, '{}'::uuid[])) <= 200
+    and p.id = any(coalesce(p_user_ids, '{}'::uuid[]))
+    and (p.id = (select auth.uid()) or p.feed_opt_in = true);
+$$;
+
+revoke all on function public.list_feed_profiles(uuid[]) from public, anon, authenticated;
+grant execute on function public.list_feed_profiles(uuid[]) to authenticated;
+
+drop trigger if exists weights_reconcile_generated_posts on public.weights;
+create trigger weights_reconcile_generated_posts
+after insert or update or delete on public.weights
+for each row execute function public.reconcile_generated_posts_from_source();
+
+drop trigger if exists photos_reconcile_generated_posts on public.photos;
+create trigger photos_reconcile_generated_posts
+after insert or update or delete on public.photos
+for each row execute function public.reconcile_generated_posts_from_source();
+
+drop trigger if exists profiles_reconcile_generated_posts_on_insert on public.profiles;
+create trigger profiles_reconcile_generated_posts_on_insert
+after insert on public.profiles
+for each row execute function public.reconcile_generated_posts_from_source();
+
+drop trigger if exists profiles_reconcile_generated_posts_on_goal_update on public.profiles;
+create trigger profiles_reconcile_generated_posts_on_goal_update
+after update of start_weight_kg, goal_weight_kg on public.profiles
+for each row
+when (
+  old.start_weight_kg is distinct from new.start_weight_kg
+  or old.goal_weight_kg is distinct from new.goal_weight_kg
+)
+execute function public.reconcile_generated_posts_from_source();
+
 alter table public.profiles enable row level security;
 alter table public.weights enable row level security;
 alter table public.photos enable row level security;
 alter table public.posts enable row level security;
 alter table public.reactions enable row level security;
 
--- Explicit grants keep the Data API surface narrow.
-grant select, insert, update on public.profiles to authenticated;
+-- Explicit grants keep the Data API surface narrow. Username is intentionally
+-- immutable: it is also the stable source for the internal Auth identity.
+revoke insert, update on public.profiles from authenticated;
+grant select on public.profiles to authenticated;
+grant update (
+  display_name,
+  unit,
+  start_weight_kg,
+  goal_weight_kg,
+  start_date,
+  target_date,
+  feed_opt_in
+) on public.profiles to authenticated;
 grant select, insert, update, delete on public.weights to authenticated;
 grant select, insert, update, delete on public.photos to authenticated;
 grant select, insert, update, delete on public.posts to authenticated;
@@ -152,14 +565,12 @@ grant select, insert, update, delete on public.reactions to authenticated;
 revoke all on public.profiles, public.weights, public.photos, public.posts, public.reactions from anon;
 
 drop policy if exists profiles_read_owner_or_opted_in on public.profiles;
-create policy profiles_read_owner_or_opted_in on public.profiles
+drop policy if exists profiles_read_owner on public.profiles;
+create policy profiles_read_owner on public.profiles
 for select to authenticated
-using (id = (select auth.uid()) or feed_opt_in = true);
+using (id = (select auth.uid()));
 
 drop policy if exists profiles_insert_self on public.profiles;
-create policy profiles_insert_self on public.profiles
-for insert to authenticated
-with check (id = (select auth.uid()));
 
 drop policy if exists profiles_update_self on public.profiles;
 create policy profiles_update_self on public.profiles
@@ -180,10 +591,7 @@ using (
   user_id = (select auth.uid())
   or (
     visibility = 'feed'
-    and exists (
-      select 1 from public.profiles p
-      where p.id = photos.user_id and p.feed_opt_in = true
-    )
+    and public.feed_profile_is_visible(photos.user_id)
   )
 );
 
@@ -208,27 +616,40 @@ create policy posts_owner_or_feed on public.posts
 for select to authenticated
 using (
   user_id = (select auth.uid())
-  or exists (
-    select 1 from public.profiles p
-    where p.id = posts.user_id and p.feed_opt_in = true
-  )
+  or public.feed_profile_is_visible(posts.user_id)
 );
 
 drop policy if exists posts_owner_insert on public.posts;
 create policy posts_owner_insert on public.posts
 for insert to authenticated
-with check (user_id = (select auth.uid()));
+with check (
+  user_id = (select auth.uid())
+  and generated = false
+  and activity_key is null
+);
 
 drop policy if exists posts_owner_update on public.posts;
 create policy posts_owner_update on public.posts
 for update to authenticated
-using (user_id = (select auth.uid()))
-with check (user_id = (select auth.uid()));
+using (
+  user_id = (select auth.uid())
+  and generated = false
+  and activity_key is null
+)
+with check (
+  user_id = (select auth.uid())
+  and generated = false
+  and activity_key is null
+);
 
 drop policy if exists posts_owner_delete on public.posts;
 create policy posts_owner_delete on public.posts
 for delete to authenticated
-using (user_id = (select auth.uid()));
+using (
+  user_id = (select auth.uid())
+  and generated = false
+  and activity_key is null
+);
 
 drop policy if exists reactions_read_authenticated on public.reactions;
 create policy reactions_read_authenticated on public.reactions
@@ -238,9 +659,11 @@ using (
   or exists (
     select 1
     from public.posts po
-    join public.profiles p on p.id = po.user_id
     where po.id = reactions.post_id
-      and (po.user_id = (select auth.uid()) or p.feed_opt_in = true)
+      and (
+        po.user_id = (select auth.uid())
+        or public.feed_profile_is_visible(po.user_id)
+      )
   )
 );
 
@@ -252,9 +675,11 @@ with check (
   and exists (
     select 1
     from public.posts po
-    join public.profiles p on p.id = po.user_id
     where po.id = reactions.post_id
-      and (po.user_id = (select auth.uid()) or p.feed_opt_in = true)
+      and (
+        po.user_id = (select auth.uid())
+        or public.feed_profile_is_visible(po.user_id)
+      )
   )
 );
 
@@ -313,9 +738,26 @@ revoke all on function public.toggle_reaction(uuid, text) from public;
 grant execute on function public.toggle_reaction(uuid, text) to authenticated;
 
 -- Private object storage. Paths must begin with the authenticated user's UUID.
-insert into storage.buckets (id, name, public)
-values ('progress-photos', 'progress-photos', false)
-on conflict (id) do update set public = false;
+-- Bucket-level limits are authoritative even if a client bypasses our UI.
+insert into storage.buckets (
+  id,
+  name,
+  public,
+  file_size_limit,
+  allowed_mime_types
+)
+values (
+  'progress-photos',
+  'progress-photos',
+  false,
+  4 * 1024 * 1024,
+  array['image/jpeg', 'image/png', 'image/webp']::text[]
+)
+on conflict (id) do update
+set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
 
 drop policy if exists progress_photos_insert_own_folder on storage.objects;
 create policy progress_photos_insert_own_folder on storage.objects
@@ -335,8 +777,9 @@ using (
     or exists (
       select 1
       from public.photos ph
-      join public.profiles p on p.id = ph.user_id
-      where ph.storage_path = name and ph.visibility = 'feed' and p.feed_opt_in = true
+      where ph.storage_path = name
+        and ph.visibility = 'feed'
+        and public.feed_profile_is_visible(ph.user_id)
     )
   )
 );
@@ -360,3 +803,52 @@ using (
   bucket_id = 'progress-photos'
   and (storage.foldername(name))[1] = (select auth.uid())::text
 );
+
+-- Reconcile any rows that existed before this migration added the triggers.
+-- Older clients used activity keys for browser-generated posts; clear those
+-- keys before enforcing database ownership of the generated namespace.
+update public.posts
+set activity_key = null
+where generated = false and activity_key is not null;
+
+do $$
+declare
+  existing_user_id uuid;
+begin
+  for existing_user_id in select id from public.profiles loop
+    perform public.rebuild_generated_posts(existing_user_id);
+  end loop;
+end
+$$;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.posts'::regclass
+      and conname = 'posts_generated_activity_key_check'
+  ) then
+    alter table public.posts
+      add constraint posts_generated_activity_key_check
+      check (
+        (generated = true and activity_key is not null)
+        or (generated = false and activity_key is null)
+      );
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.posts'::regclass
+      and conname = 'posts_generated_type_check'
+  ) then
+    alter table public.posts
+      add constraint posts_generated_type_check
+      check (
+        generated = false
+        or type in ('weight_loss', 'streak', 'goal_milestone', 'photo')
+      );
+  end if;
+end
+$$;

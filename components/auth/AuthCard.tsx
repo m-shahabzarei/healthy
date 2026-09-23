@@ -18,7 +18,7 @@ export function AuthCard({ mode, children }: AuthCardProps) {
               <span className="mono-label">{isLogin ? 'WELCOME BACK' : 'MAKE IT YOURS'}</span>
               <h2>{isLogin ? 'Welcome back.' : 'Let’s begin.'}</h2>
             </div>
-            <ShieldCheck size={20} aria-label="Local storage" className="auth-shield" />
+            <ShieldCheck size={20} aria-label="Secure hosted account" className="auth-shield" />
           </div>
           <p className="auth-panel-note">{isLogin ? 'Sign in to see your journey.' : 'Create a space for your own pace.'}</p>
           {children}

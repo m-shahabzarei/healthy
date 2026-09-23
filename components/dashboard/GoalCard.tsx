@@ -1,6 +1,6 @@
 import { ArrowRight, Flag } from 'lucide-react';
 import type { User } from '@/lib/types';
-import { calculateProgress } from '@/lib/store';
+import { calculateProgress } from '@/lib/selectors';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 
 export function GoalCard({ user, current }: { user: User; current: number }) {

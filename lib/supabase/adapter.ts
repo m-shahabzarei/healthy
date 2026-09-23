@@ -24,6 +24,7 @@ import type {
   ProgressPhotoInput,
   SupabaseAuthUser,
   SupabaseConfig,
+  SupabaseFeedProfileRow,
   SupabasePhotoRow,
   SupabasePostRow,
   SupabaseProfileRow,
@@ -38,6 +39,13 @@ import { hasSupabaseEnv, readSupabaseEnv } from "./env";
 const MIN_WEIGHT_KG = 20;
 const MAX_WEIGHT_KG = 400;
 const PHOTO_BUCKET = "progress-photos";
+const MAX_PHOTO_BYTES = 4 * 1024 * 1024;
+const PHOTO_EXTENSIONS = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+} as const;
+type AllowedPhotoMime = keyof typeof PHOTO_EXTENSIONS;
 
 export interface SupabaseAdapterOptions extends SupabaseConfig {
   /** Optional initial session restored by the host application. */
@@ -62,7 +70,9 @@ function requiredDate(value: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     throw new SupabaseAdapterError("Dates must use YYYY-MM-DD.", 400, "INVALID_DATE");
   }
-  const date = new Date(`${value}T00:00:00`);
+  // Parse at UTC midnight. Parsing at local midnight and comparing its ISO
+  // date rejects every otherwise-valid date in positive UTC offsets.
+  const date = new Date(`${value}T00:00:00.000Z`);
   if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
     throw new SupabaseAdapterError("Date is not valid.", 400, "INVALID_DATE");
   }
@@ -80,7 +90,7 @@ function requiredWeight(value: number): number {
 function username(value: string): string {
   const normalized = value.trim().normalize("NFKC").toLowerCase();
   if (!/^[a-z0-9_.-]{3,32}$/.test(normalized)) {
-    throw new SupabaseAdapterError("Username must contain 3–32 Latin letters, numbers, dots, or hyphens.", 400, "INVALID_USERNAME");
+    throw new SupabaseAdapterError("Username must contain 3–32 Latin letters, numbers, dots, underscores, or hyphens.", 400, "INVALID_USERNAME");
   }
   return normalized;
 }
@@ -88,7 +98,7 @@ function username(value: string): string {
 function email(value: string): string {
   const normalized = value.trim().toLowerCase();
   if (!/^\S+@\S+\.\S+$/.test(normalized)) {
-    throw new SupabaseAdapterError("A real email address is required by hosted Supabase Auth.", 400, "INVALID_EMAIL");
+    throw new SupabaseAdapterError("A valid email identity is required by hosted Supabase Auth.", 400, "INVALID_EMAIL");
   }
   return normalized;
 }
@@ -105,12 +115,16 @@ function uid(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
-function fileExtension(file: Blob, name?: string): string {
-  const fromName = name?.split(".").pop()?.toLowerCase();
-  if (fromName && /^[a-z0-9]{1,5}$/.test(fromName)) return fromName;
-  if (file.type === "image/png") return "png";
-  if (file.type === "image/webp") return "webp";
-  return "jpg";
+function requiredPhotoMime(file: Blob): AllowedPhotoMime {
+  const mime = file.type.trim().toLowerCase() as AllowedPhotoMime;
+  if (!Object.prototype.hasOwnProperty.call(PHOTO_EXTENSIONS, mime)) {
+    throw new SupabaseAdapterError(
+      "Photo must be a JPEG, PNG, or WebP image.",
+      400,
+      "INVALID_PHOTO_TYPE",
+    );
+  }
+  return mime;
 }
 
 function goalFromProfile(profile: SupabaseProfileRow): Goal {
@@ -143,6 +157,7 @@ function toUser(profile: SupabaseProfileRow): User {
     targetWeight: target,
     unit: profile.unit,
     initials: initials || "?",
+    feedOptIn: profile.feed_opt_in,
   };
 }
 
@@ -188,7 +203,11 @@ function toReaction(row: SupabaseReactionRow): Reaction {
   };
 }
 
-function toPost(row: SupabasePostRow, profile?: SupabaseProfileRow, counts: Record<string, number> = {}): CommunityPost {
+function toPost(
+  row: SupabasePostRow,
+  profile?: Pick<SupabaseProfileRow, "username" | "display_name">,
+  counts: Record<string, number> = {},
+): CommunityPost {
   const displayName = profile?.display_name || profile?.username || "Healthy member";
   const initials = displayName.trim().split(/\s+/).filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
   return {
@@ -222,13 +241,7 @@ function query(params: Record<string, string | number | undefined>): string {
   return rendered ? `?${rendered}` : "";
 }
 
-/**
- * Hosted implementation seam for the local `lib/store.ts` operations.
- *
- * It intentionally does not persist tokens. The Next.js host should keep the
- * session in an httpOnly cookie/server session or pass a refreshed session
- * back into `setSession`; never put a service-role key in browser code.
- */
+/** Supabase implementation used by Healthy's hosted browser store. */
 export class SupabaseHealthyAdapter {
   readonly client: SupabaseRestClient;
   private session: HostedSession | null;
@@ -354,9 +367,9 @@ export class SupabaseHealthyAdapter {
   }
 
   /**
-   * Username/password cannot be safely implemented by querying profiles: that
-   * would either expose account existence or require a service-role key in the
-   * browser. Use email/password here, or add a trusted Edge Function resolver.
+   * The runtime resolves usernames to internal Auth identities in the trusted
+   * Next.js registration/login seam. This low-level adapter remains email-only
+   * so a service key is never needed in the browser.
    */
   async signInWithUsername(_username: string, _password: string): Promise<never> {
     throw new SupabaseAdapterError(
@@ -444,16 +457,18 @@ export class SupabaseHealthyAdapter {
     return Promise.all((rows || []).map(async (row) => toPhoto(row, await this.createSignedPhotoUrl(row.storage_path))));
   }
 
-  async uploadProgressPhoto(file: Blob, input: ProgressPhotoInput, originalName?: string): Promise<HostedProgressPhoto> {
-    if (!file.type.startsWith("image/")) throw new SupabaseAdapterError("Only image files can be uploaded.", 400, "INVALID_PHOTO_TYPE");
-    if (file.size > 8 * 1024 * 1024) throw new SupabaseAdapterError("Photo must be smaller than 8 MB.", 400, "PHOTO_TOO_LARGE");
+  async uploadProgressPhoto(file: Blob, input: ProgressPhotoInput, _originalName?: string): Promise<HostedProgressPhoto> {
+    const mime = requiredPhotoMime(file);
+    if (file.size === 0) throw new SupabaseAdapterError("Photo cannot be empty.", 400, "EMPTY_PHOTO");
+    if (file.size > MAX_PHOTO_BYTES) throw new SupabaseAdapterError("Photo must be 4 MB or smaller.", 400, "PHOTO_TOO_LARGE");
     const date = requiredDate(input.date);
-    const path = `${this.userId()}/${uid()}.${fileExtension(file, originalName)}`;
+    const path = `${this.userId()}/${uid()}.${PHOTO_EXTENSIONS[mime]}`;
+    let metadataWritten = false;
     try {
       await this.client.storage(`/object/${PHOTO_BUCKET}/${path}`, {
         method: "POST",
         accessToken: this.token(),
-        headers: { "Content-Type": file.type || "application/octet-stream", "x-upsert": "false" },
+        headers: { "Content-Type": mime, "x-upsert": "false" },
         body: file,
         json: false,
       });
@@ -470,13 +485,16 @@ export class SupabaseHealthyAdapter {
         },
       });
       if (!rows?.[0]) throw new SupabaseAdapterError("Photo metadata write returned no row.", 500, "PHOTO_WRITE_EMPTY");
+      metadataWritten = true;
       return toPhoto(rows[0], await this.createSignedPhotoUrl(path));
     } catch (error) {
       // Best-effort cleanup prevents orphaned objects when the metadata insert fails.
-      try {
-        await this.client.storage(`/object/${PHOTO_BUCKET}/${path}`, { method: "DELETE", accessToken: this.token() });
-      } catch {
-        // Keep the original, actionable error.
+      if (!metadataWritten) {
+        try {
+          await this.client.storage(`/object/${PHOTO_BUCKET}/${path}`, { method: "DELETE", accessToken: this.token() });
+        } catch {
+          // Keep the original, actionable error.
+        }
       }
       throw error;
     }
@@ -508,7 +526,11 @@ export class SupabaseHealthyAdapter {
     const postRows = posts || [];
     const userIds = Array.from(new Set(postRows.map((post) => post.user_id)));
     const profiles = userIds.length
-      ? await this.client.data<SupabaseProfileRow[]>(`profiles${query({ id: `in.(${userIds.join(",")})`, select: "*" })}`, { accessToken: this.token() })
+      ? await this.client.rpc<SupabaseFeedProfileRow[]>(
+          "list_feed_profiles",
+          { p_user_ids: userIds },
+          { accessToken: this.token() },
+        )
       : [];
     const profileMap = new Map((profiles || []).map((profile) => [profile.id, profile]));
     const postIds = postRows.map((post) => post.id);
@@ -542,35 +564,21 @@ export class SupabaseHealthyAdapter {
         title: input.title || null,
         metric_value: input.metricValue ?? input.value ?? null,
         metric_label: input.metricLabel || null,
-        activity_key: input.activityKey || null,
-        generated: input.generated !== false,
+        activity_key: null,
+        generated: false,
       },
     });
     if (!rows?.[0]) throw new SupabaseAdapterError("Post write returned no row.", 500, "POST_WRITE_EMPTY");
     return toPost(rows[0], undefined, {});
   }
 
-  /** Idempotently publish generated activity drafts by their activity key. */
-  async syncGeneratedPosts(posts: CommunityPost[]): Promise<CommunityPost[]> {
-    const owned = posts.filter((post) => post.userId === this.userId() && post.activityKey);
-    if (!owned.length) return [];
-    const rows = await this.client.data<SupabasePostRow[]>("posts?on_conflict=user_id%2Cactivity_key", {
-      method: "POST",
-      accessToken: this.token(),
-      headers: { Prefer: "resolution=ignore-duplicates,return=representation" },
-      body: owned.map((post) => ({
-        user_id: this.userId(),
-        type: post.type,
-        occurred_on: requiredDate(post.date),
-        body: post.body || post.copy || post.text || "",
-        title: post.title || null,
-        metric_value: post.metricValue ?? post.value ?? null,
-        metric_label: post.metricLabel || null,
-        activity_key: post.activityKey,
-        generated: true,
-      })),
-    });
-    return (rows || []).map((row) => toPost(row, undefined, {}));
+  /** Generated activity is database-owned; retained only as a migration guard. */
+  async syncGeneratedPosts(_posts: CommunityPost[]): Promise<CommunityPost[]> {
+    throw new SupabaseAdapterError(
+      "Generated community activity is maintained automatically by the database.",
+      400,
+      "GENERATED_POSTS_DATABASE_OWNED",
+    );
   }
 
   async toggleReaction(postId: string, type: ReactionType): Promise<HostedReactionResult> {

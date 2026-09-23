@@ -9,13 +9,14 @@ import { WeightHero } from '@/components/dashboard/WeightHero';
 import { WeightEntryForm } from '@/components/dashboard/WeightEntryForm';
 import { GoalCard } from '@/components/dashboard/GoalCard';
 import { RecentEntries } from '@/components/dashboard/RecentEntries';
-import { getLatestWeight, getPreviousWeight, getServerSnapshot, getSnapshot, getUserWeights, getLoggingStreak, subscribe } from '@/lib/store';
+import { getHostedServerState, getHostedState, subscribeHosted } from '@/lib/hosted-store';
+import { getLatestWeight, getLoggingStreak, getPreviousWeight, getUserWeights } from '@/lib/selectors';
 
 function todayLabel() { return new Intl.DateTimeFormat('en-US', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date()); }
 function formatNumber(value: number) { return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value); }
 
 export default function DashboardPage() {
-  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const { snapshot } = useSyncExternalStore(subscribeHosted, getHostedState, getHostedServerState);
   const user = snapshot.currentUser;
   const userId = user?.id ?? '';
   const entries = useMemo(() => userId ? getUserWeights(userId, snapshot) : [], [snapshot, userId]);

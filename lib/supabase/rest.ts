@@ -58,7 +58,17 @@ export class SupabaseRestClient {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const headers = new Headers(options.headers);
     headers.set("apikey", this.anonKey);
-    headers.set("Authorization", `Bearer ${options.accessToken || this.anonKey}`);
+    // Supabase's newer `sb_publishable_...` keys belong only in `apikey`.
+    // Sending them as Bearer tokens makes the gateway parse them as JWTs and
+    // reject the request. Legacy anon keys are JWTs and remain valid Bearer
+    // fallbacks until the project migrates to publishable keys.
+    if (options.accessToken) {
+      headers.set("Authorization", `Bearer ${options.accessToken}`);
+    } else if (this.anonKey.startsWith("eyJ")) {
+      headers.set("Authorization", `Bearer ${this.anonKey}`);
+    } else {
+      headers.delete("Authorization");
+    }
     headers.set("Accept", "application/json");
 
     let body: BodyInit | undefined;

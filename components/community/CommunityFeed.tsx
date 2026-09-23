@@ -3,16 +3,9 @@
 import Link from 'next/link';
 import { ArrowRight, Filter, HeartHandshake, Users } from 'lucide-react';
 import { useMemo, useState, useSyncExternalStore } from 'react';
-import {
-  getReactionForUser,
-  getServerSnapshot,
-  getSnapshot,
-  saveSnapshot,
-  subscribe,
-  toggleReaction,
-} from '@/lib/store';
+import { getHostedServerState, getHostedState, subscribeHosted, toggleHostedReaction } from '@/lib/hosted-store';
+import { getReactionForUser } from '@/lib/selectors';
 import type { CommunityPost } from '@/lib/types';
-import { buildDailyActivity } from '@/lib/activity';
 import ProgressPost from './ProgressPost';
 import type { CommunityReaction } from './ReactionBar';
 
@@ -38,19 +31,6 @@ function sortPosts(posts: CommunityPost[]): CommunityPost[] {
   });
 }
 
-function mergePosts(stored: CommunityPost[], generated: CommunityPost[]): CommunityPost[] {
-  const result: CommunityPost[] = [];
-  const ids = new Set<string>();
-  const keys = new Set<string>();
-  [...stored, ...generated].forEach((post) => {
-    if (ids.has(post.id) || (post.activityKey && keys.has(post.activityKey))) return;
-    ids.add(post.id);
-    if (post.activityKey) keys.add(post.activityKey);
-    result.push(post);
-  });
-  return sortPosts(result);
-}
-
 function matchesFilter(post: CommunityPost, filter: CommunityFilter): boolean {
   if (filter === 'all') return true;
   if (filter === 'weight_loss') return post.type === 'weight_loss';
@@ -71,39 +51,31 @@ function filterEmptyCopy(filter: CommunityFilter): string {
   }
 }
 
-/** Community activity stream with local persistence and a deliberately small filter surface. */
+/** Community activity stream backed entirely by persisted Supabase posts. */
 export function CommunityFeed() {
-  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const { snapshot } = useSyncExternalStore(subscribeHosted, getHostedState, getHostedServerState);
   const [filter, setFilter] = useState<CommunityFilter>('all');
   const [announcement, setAnnouncement] = useState('');
+  const [pendingPostId, setPendingPostId] = useState<string | null>(null);
 
-  const posts = useMemo(
-    () => mergePosts(snapshot.posts, buildDailyActivity(snapshot)),
-    [snapshot],
-  );
+  const posts = useMemo(() => sortPosts(snapshot.posts), [snapshot.posts]);
   const visiblePosts = useMemo(
     () => posts.filter((post) => matchesFilter(post, filter)),
     [filter, posts],
   );
 
-  function handleReact(post: CommunityPost, reaction: CommunityReaction) {
-    // New automatic events are derived from current state and therefore do
-    // not exist in `snapshot.posts` yet. Persist that post at first interaction
-    // so the existing store reaction API can address it and survive reloads.
-    const latest = getSnapshot();
-    const alreadyStored = latest.posts.some(
-      (candidate) => candidate.id === post.id || (post.activityKey && candidate.activityKey === post.activityKey),
-    );
-    if (!alreadyStored) {
-      saveSnapshot({ ...latest, posts: [...latest.posts, post] });
+  async function handleReact(post: CommunityPost, reaction: CommunityReaction) {
+    if (pendingPostId) return;
+    setPendingPostId(post.id);
+    setAnnouncement('Saving your reaction…');
+    try {
+      const result = await toggleHostedReaction(post.id, reaction);
+      setAnnouncement(result.active ? reactionCopy[reaction].on : reactionCopy[reaction].off);
+    } catch (reactionError) {
+      setAnnouncement(reactionError instanceof Error ? reactionError.message : 'Reaction could not be saved. Try again.');
+    } finally {
+      setPendingPostId(null);
     }
-
-    const result = toggleReaction(post.id, reaction);
-    if (!result.ok) {
-      setAnnouncement(result.error || 'Reaction could not be saved. Try again.');
-      return;
-    }
-    setAnnouncement(result.active ? reactionCopy[reaction].on : reactionCopy[reaction].off);
   }
 
   return (
@@ -150,13 +122,20 @@ export function CommunityFeed() {
         <section className="community-list" aria-label="Community progress feed">
           {visiblePosts.map((post) => {
             const active = getReactionForUser(post.id, snapshot.currentUser?.id, snapshot);
+            const pending = pendingPostId === post.id;
             return (
-              <ProgressPost
+              <fieldset
                 key={post.id}
-                post={post}
-                activeReaction={active?.type === 'encourage' || active?.type === 'celebrate' || active?.type === 'fire' ? active.type : null}
-                onReact={(reaction) => handleReact(post, reaction)}
-              />
+                className="community-post-fieldset"
+                disabled={pending}
+                aria-busy={pending}
+              >
+                <ProgressPost
+                  post={post}
+                  activeReaction={active?.type === 'encourage' || active?.type === 'celebrate' || active?.type === 'fire' ? active.type : null}
+                  onReact={(reaction) => void handleReact(post, reaction)}
+                />
+              </fieldset>
             );
           })}
         </section>
@@ -189,6 +168,8 @@ export function CommunityFeed() {
         .community-result-count { color: var(--ink-faint, #999999); font-size: 10px; white-space: nowrap; }
         .community-announcement { min-height: 19px; margin: 0 0 10px; color: var(--success, #e2e2e2); font-size: 11px; }
         .community-list { display: grid; gap: 12px; }
+        .community-post-fieldset { min-width: 0; margin: 0; padding: 0; border: 0; transition: opacity .2s var(--ease, ease); }
+        .community-post-fieldset[disabled] { opacity: .62; }
         .community-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 42px 20px; }
         .community-empty .button { margin-top: 12px; }
         @media (max-width: 600px) {

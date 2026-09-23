@@ -1,12 +1,4 @@
-/**
- * Shared domain types for the client-only Healthy prototype.
- *
- * The store deliberately keeps these types free of React/Next.js concerns. It
- * makes the persistence layer replaceable when the app is moved to a hosted
- * database later on.
- */
-
-export const STORE_KEY = "healthy-store-v1" as const;
+/** Shared domain contracts for Healthy's hosted Supabase runtime. */
 export const STORE_VERSION = 2 as const;
 
 export type WeightUnit = "kg" | "lb";
@@ -15,13 +7,7 @@ export type WeightUnit = "kg" | "lb";
 export type ReactionType =
   | "encourage"
   | "celebrate"
-  | "fire"
-  | "support"
-  | "heart"
-  | "like"
-  // These aliases make the store tolerant of an older/experimental UI.
-  | "cheer"
-  | "strong";
+  | "fire";
 
 export type PostType =
   | "weight_loss"
@@ -40,8 +26,7 @@ export interface Goal {
   targetDate?: string;
   unit?: WeightUnit;
 
-  // Friendly aliases retained for UI code written before the kg suffix was
-  // introduced. They are always populated by the store normalizer.
+  // Lightweight display aliases populated by the hosted adapter.
   startWeight?: number;
   targetWeight?: number;
 }
@@ -59,14 +44,8 @@ export interface User {
   unit?: WeightUnit;
   avatarUrl?: string;
   initials?: string;
-  /**
-   * Demo-only credential. This must be replaced with managed auth before the
-   * app is used with real accounts. It is optional so a future auth adapter can
-   * omit credentials entirely.
-   */
-  password?: string;
-  passwordHash?: string;
-  isDemo?: boolean;
+  /** Whether this member allows generated progress events in the community feed. */
+  feedOptIn: boolean;
 }
 
 export interface WeightEntry {
@@ -84,23 +63,13 @@ export interface WeightEntry {
   createdAt: string;
 }
 
-export type WeightEntryInput = {
-  id?: string;
-  userId?: string;
-  date?: string | Date;
-  weight?: number | string;
-  weightKg?: number | string;
-  note?: string;
-  createdAt?: string;
-};
-
 export interface ProgressPhoto {
   id: string;
   userId: string;
   /** Local calendar date (`YYYY-MM-DD`). */
   date: string;
   takenAt?: string;
-  /** A compressed data URL in local mode, or a remote URL in a hosted mode. */
+  /** Short-lived signed URL returned by Supabase Storage. */
   dataUrl: string;
   /** URL aliases make migration to object storage straightforward. */
   imageUrl?: string;
@@ -110,20 +79,6 @@ export interface ProgressPhoto {
   visibility?: "private" | "feed";
   createdAt: string;
 }
-
-export type ProgressPhotoInput = {
-  id?: string;
-  userId?: string;
-  date?: string | Date;
-  takenAt?: string | Date;
-  dataUrl?: string;
-  imageUrl?: string;
-  url?: string;
-  src?: string;
-  caption?: string;
-  visibility?: "private" | "feed";
-  createdAt?: string;
-};
 
 export interface Reaction {
   id: string;
@@ -144,7 +99,7 @@ export interface CommunityPost {
   date: string;
   createdAt: string;
   body: string;
-  /** Persian copy/title aliases used by different feed presentations. */
+  /** Copy/title aliases used by different feed presentations. */
   copy?: string;
   title?: string;
   text?: string;
@@ -158,15 +113,10 @@ export interface CommunityPost {
   reactions: ReactionCounts;
 }
 
-/** `Post` is kept as a concise alias for feature components. */
-export type Post = CommunityPost;
-export type ActivityPost = CommunityPost;
-
 export interface Snapshot {
   version: typeof STORE_VERSION;
   currentUser: User | null;
-  /** Persisted session seam; kept alongside `currentUser` for easy migration. */
-  currentUserId?: string | null;
+  currentUserId: string | null;
   users: User[];
   weightEntries: WeightEntry[];
   progressPhotos: ProgressPhoto[];
@@ -174,7 +124,15 @@ export interface Snapshot {
   reactions: Reaction[];
 }
 
-export type StoreSnapshot = Snapshot;
+/** Lifecycle of the Supabase-backed client store. */
+export type HostedStatus = "booting" | "anonymous" | "ready" | "error";
+
+/** Stable external-store value consumed by React's useSyncExternalStore. */
+export interface HostedState {
+  status: HostedStatus;
+  snapshot: Snapshot;
+  error: string | null;
+}
 
 export interface RegisterInput {
   username: string;
@@ -187,33 +145,6 @@ export interface RegisterInput {
   startDate?: string | Date;
   targetDate?: string | Date;
   unit?: WeightUnit;
-}
-
-export interface AuthUserResult {
-  ok: true;
-  success: true;
-  user: User;
-  snapshot: Snapshot;
-}
-
-export interface AuthErrorResult {
-  ok: false;
-  success: false;
-  error: string;
-  /** UI-friendly alias retained for auth forms. */
-  message: string;
-  field?: "username" | "password" | "displayName" | "general";
-}
-
-export type AuthResult = AuthUserResult | AuthErrorResult;
-
-export interface ReactionToggleResult {
-  ok: boolean;
-  active: boolean;
-  reaction: Reaction | null;
-  post: CommunityPost | null;
-  snapshot: Snapshot;
-  error?: string;
 }
 
 export type ReactionInput = ReactionType | { type: ReactionType };

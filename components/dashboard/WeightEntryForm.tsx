@@ -2,7 +2,8 @@
 
 import { Check, LoaderCircle, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { addWeightEntry, toDateKey } from '@/lib/store';
+import { addHostedWeight } from '@/lib/hosted-store';
+import { toDateKey } from '@/lib/selectors';
 import type { WeightEntry } from '@/lib/types';
 
 function todayKey() { return toDateKey(new Date()); }
@@ -20,19 +21,20 @@ export function WeightEntryForm({ onSaved }: { onSaved?: (entry: WeightEntry) =>
 
   useEffect(() => { setDate(todayKey()); }, []);
 
-  function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(''); setSaved(false);
     const parsed = Number(normalizeDigits(weight));
     if (!Number.isFinite(parsed) || parsed < 20 || parsed > 400) { setError('Enter a weight between 20 and 400 kg.'); return; }
     setBusy(true);
-    window.setTimeout(() => {
-      const entry = addWeightEntry({ weight: parsed, date, note });
-      setBusy(false);
-      if (!entry) { setError('Could not save this entry. Check the date and weight.'); return; }
+    try {
+      const entry = await addHostedWeight({ weightKg: parsed, date, note: note.trim() || undefined });
       setWeight(''); setNote(''); setSaved(true); onSaved?.(entry);
-      window.setTimeout(() => setSaved(false), 2800);
-    }, 180);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Could not save this entry. Check the date and weight.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -46,7 +48,7 @@ export function WeightEntryForm({ onSaved }: { onSaved?: (entry: WeightEntry) =>
         <div className="form-field"><label htmlFor="weight-note">Note <span className="optional-label">optional</span></label><input id="weight-note" name="weight-note" type="text" value={note} onChange={(event) => setNote(event.target.value)} placeholder="e.g. Slept well, more energy…" maxLength={120} /></div>
         {error && <p className="error-text" role="alert">{error}</p>}
         {saved && <p className="success-text" role="status" aria-live="polite"><Check size={15} aria-hidden="true" /> Saved. Your trend is up to date.</p>}
-        <button className="button button-primary entry-submit" type="submit" disabled={busy}>{busy ? <LoaderCircle size={17} className="spin" /> : <Plus size={17} />} {busy ? 'Saving…' : 'Log weight'}</button>
+        <button className="button button-primary entry-submit" type="submit" disabled={busy} aria-busy={busy}>{busy ? <LoaderCircle size={17} className="spin" aria-hidden="true" /> : <Plus size={17} aria-hidden="true" />} {busy ? 'Saving…' : 'Log weight'}</button>
       </form>
     </section>
   );

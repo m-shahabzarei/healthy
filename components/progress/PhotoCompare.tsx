@@ -1,4 +1,4 @@
-/* eslint-disable @next/next/no-img-element -- supports local data URLs and hosted signed URLs. */
+/* eslint-disable @next/next/no-img-element -- Supabase signed URLs can change after refresh. */
 import { ArrowLeftRight } from 'lucide-react';
 import type { ProgressPhoto } from '@/lib/types';
 
