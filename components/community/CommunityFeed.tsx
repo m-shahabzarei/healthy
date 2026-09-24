@@ -8,6 +8,8 @@ import { getReactionForUser } from '@/lib/selectors';
 import type { CommunityPost } from '@/lib/types';
 import ProgressPost from './ProgressPost';
 import type { CommunityReaction } from './ReactionBar';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
+import { formatNumber, translateError } from '@/lib/i18n';
 
 export type CommunityFilter = 'all' | 'weight_loss' | 'records' | 'photo';
 
@@ -53,6 +55,7 @@ function filterEmptyCopy(filter: CommunityFilter): string {
 
 /** Community activity stream backed entirely by persisted Supabase posts. */
 export function CommunityFeed() {
+  const { locale, t } = useLanguage();
   const { snapshot } = useSyncExternalStore(subscribeHosted, getHostedState, getHostedServerState);
   const [filter, setFilter] = useState<CommunityFilter>('all');
   const [announcement, setAnnouncement] = useState('');
@@ -79,27 +82,27 @@ export function CommunityFeed() {
   }
 
   return (
-    <div className="community-page app-container" dir="ltr">
+    <div className="community-page app-container">
       <header className="community-header">
         <div>
-          <p className="eyebrow"><span className="eyebrow-line" /> Together, steady and kind</p>
-          <h1 className="page-title">Our circle.</h1>
-          <p className="page-subtitle">Small wins from the Healthy community, for the days you need a little extra momentum.</p>
+          <p className="eyebrow"><span className="eyebrow-line" /> {t('Together, steady and kind')}</p>
+          <h1 className="page-title">{t('Our circle.')}</h1>
+          <p className="page-subtitle">{t('Small wins from the Healthy community, for the days you need a little extra momentum.')}</p>
         </div>
-        <div className="community-count" aria-label={`${posts.length} activities in the feed`}>
+        <div className="community-count" aria-label={t('{count} activities in the feed', { count: formatNumber(locale, posts.length) })}>
           <Users size={18} aria-hidden="true" />
-          <strong>{new Intl.NumberFormat('en-US').format(posts.length)}</strong>
-          <span>activities</span>
+          <strong>{formatNumber(locale, posts.length)}</strong>
+          <span>{t('activities')}</span>
         </div>
       </header>
 
-      <section className="community-note surface-muted" aria-label="Feed guidance">
+      <section className="community-note surface-muted" aria-label={t('Feed guidance')}>
         <span className="community-note-icon" aria-hidden="true"><HeartHandshake size={20} /></span>
-        <div><strong>No comparisons here.</strong><p>Every check-in is proof that you kept going. Leave a simple reaction when someone needs support.</p></div>
+        <div><strong>{t('No comparisons here.')}</strong><p>{t('Every check-in is proof that you kept going. Leave a simple reaction when someone needs support.')}</p></div>
       </section>
 
       <div className="community-toolbar">
-        <div className="community-filters" role="group" aria-label="Filter activities">
+        <div className="community-filters" role="group" aria-label={t('Filter activities')}>
           <Filter size={15} aria-hidden="true" />
           {FILTERS.map((item) => (
             <button
@@ -109,17 +112,17 @@ export function CommunityFeed() {
               aria-pressed={filter === item.key}
               onClick={() => setFilter(item.key)}
             >
-              {item.label}
+              {t(item.label)}
             </button>
           ))}
         </div>
-        <span className="community-result-count">{new Intl.NumberFormat('en-US').format(visiblePosts.length)} items</span>
+        <span className="community-result-count">{t('{count} items', { count: formatNumber(locale, visiblePosts.length) })}</span>
       </div>
 
-      <p className="community-announcement" role="status" aria-live="polite">{announcement}</p>
+      <p className="community-announcement" role="status" aria-live="polite">{announcement ? (announcement.includes('could not') || announcement.includes('failed') ? translateError(locale, announcement) : t(announcement)) : ''}</p>
 
       {visiblePosts.length ? (
-        <section className="community-list" aria-label="Community progress feed">
+        <section className="community-list" aria-label={t('Community progress feed')}>
           {visiblePosts.map((post) => {
             const active = getReactionForUser(post.id, snapshot.currentUser?.id, snapshot);
             const pending = pendingPostId === post.id;
@@ -141,9 +144,9 @@ export function CommunityFeed() {
         </section>
       ) : (
         <section className="community-empty empty-state">
-          <strong>Nothing to show yet.</strong>
-          <p>{filterEmptyCopy(filter)}</p>
-          <Link href="/dashboard" className="button button-ghost"><ArrowRight size={16} aria-hidden="true" /> Log today&apos;s weight</Link>
+          <strong>{t('Nothing to show yet.')}</strong>
+          <p>{t(filterEmptyCopy(filter))}</p>
+          <Link href="/dashboard" className="button button-ghost"><ArrowRight size={16} aria-hidden="true" /> {t("Log today's weight")}</Link>
         </section>
       )}
 

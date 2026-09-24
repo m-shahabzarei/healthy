@@ -12,10 +12,13 @@ import {
   subscribeHosted,
 } from '@/lib/hosted-store';
 import { BottomNav } from './BottomNav';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
+import { translateError } from '@/lib/i18n';
 
-type AppShellProps = { children: React.ReactNode; active: 'home' | 'progress' | 'community' };
+type AppShellProps = { children: React.ReactNode; active: 'home' | 'progress' | 'community' | 'profile' };
 
 export function AppShell({ children, active }: AppShellProps) {
+  const { locale, t } = useLanguage();
   const router = useRouter();
   const pathname = usePathname();
   const hosted = useSyncExternalStore(subscribeHosted, getHostedState, getHostedServerState);
@@ -31,7 +34,7 @@ export function AppShell({ children, active }: AppShellProps) {
   }, [hosted.status, pathname, router]);
 
   if (hosted.status === 'booting' || hosted.status === 'anonymous') {
-    return <main className="app-loading" aria-live="polite"><span className="loading-mark" />Preparing your space…</main>;
+    return <main className="app-loading" aria-live="polite"><span className="loading-mark" />{t('Preparing your space…')}</main>;
   }
 
   async function handleRetry() {
@@ -51,11 +54,11 @@ export function AppShell({ children, active }: AppShellProps) {
     return (
       <main className="app-loading">
         <section className="empty-state" aria-live="polite">
-          <strong>We could not load your space.</strong>
-          <p>{message}</p>
+          <strong>{t('We could not load your space.')}</strong>
+          <p>{translateError(locale, message)}</p>
           <button type="button" className="button button-primary" onClick={() => void handleRetry()} disabled={retryBusy} aria-busy={retryBusy}>
             {retryBusy ? <LoaderCircle size={17} className="spin" aria-hidden="true" /> : <RefreshCw size={17} aria-hidden="true" />}
-            {retryBusy ? 'Trying again…' : 'Try again'}
+            {t(retryBusy ? 'Trying again…' : 'Try again')}
           </button>
         </section>
       </main>
@@ -78,22 +81,22 @@ export function AppShell({ children, active }: AppShellProps) {
   return (
     <div className="app-page">
       <aside className="desktop-sidebar">
-        <Link href="/dashboard" className="brand-mark" aria-label="Healthy home"><span className="brand-dot" aria-hidden="true" />Healthy</Link>
-        <div className="sidebar-profile"><span className="avatar avatar-lg">{user.initials || user.displayName.slice(0, 1)}</span><div><strong>{user.displayName}</strong><span>@{user.username}</span></div></div>
+        <Link href="/dashboard" className="brand-mark" aria-label={t('Healthy home')}><span className="brand-dot" aria-hidden="true" />{t('Healthy')}</Link>
+        <Link href="/profile" className="sidebar-profile" aria-label={t("Open {name}'s profile", { name: user.displayName })}><span className="avatar avatar-lg">{user.initials || user.displayName.slice(0, 1)}</span><div><strong>{user.displayName}</strong><span>@{user.username}</span></div></Link>
         <div className="sidebar-rule" />
         <BottomNav active={active} />
         <div className="sidebar-footer">
-          <Link href="/settings" className="side-action"><Settings2 size={17} aria-hidden="true" /> Settings</Link>
-          <button type="button" className="side-action side-logout" onClick={() => void handleLogout()} disabled={logoutBusy} aria-busy={logoutBusy}>{logoutBusy ? <LoaderCircle size={17} className="spin" aria-hidden="true" /> : <LogOut size={17} aria-hidden="true" />} {logoutBusy ? 'Logging out…' : 'Log out'}</button>
+          <Link href="/settings" className="side-action"><Settings2 size={17} aria-hidden="true" /> {t('Settings')}</Link>
+          <button type="button" className="side-action side-logout" onClick={() => void handleLogout()} disabled={logoutBusy} aria-busy={logoutBusy}>{logoutBusy ? <LoaderCircle size={17} className="spin" aria-hidden="true" /> : <LogOut size={17} aria-hidden="true" />} {t(logoutBusy ? 'Logging out…' : 'Log out')}</button>
         </div>
       </aside>
       <div className="app-main">
         <header className="mobile-app-header">
-          <Link href="/dashboard" className="brand-mark" aria-label="Healthy home"><span className="brand-dot" aria-hidden="true" />Healthy</Link>
-          <button type="button" className="mobile-avatar" onClick={() => void handleLogout()} aria-label="Log out" disabled={logoutBusy} aria-busy={logoutBusy}>{logoutBusy ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : user.initials || user.displayName.slice(0, 1)}</button>
+          <Link href="/dashboard" className="brand-mark" aria-label={t('Healthy home')}><span className="brand-dot" aria-hidden="true" />{t('Healthy')}</Link>
+          <Link href="/profile" className="mobile-avatar" aria-label={t('Open profile')}>{user.initials || user.displayName.slice(0, 1)}</Link>
         </header>
         <main className="app-content">
-          {actionError ? <p className="error-text" role="alert">{actionError}</p> : null}
+          {actionError ? <p className="error-text" role="alert">{translateError(locale, actionError)}</p> : null}
           {children}
         </main>
         <div className="mobile-nav-wrap"><BottomNav active={active} /></div>

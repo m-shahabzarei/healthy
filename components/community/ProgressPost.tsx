@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import type { CommunityPost, User } from '@/lib/types';
 import ReactionBar, { type CommunityReaction } from './ReactionBar';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
+import { formatDate, formatNumber, type Locale } from '@/lib/i18n';
 
 export interface ProgressPostProps {
   post: CommunityPost;
@@ -23,12 +25,6 @@ export interface ProgressPostProps {
   /** Alias retained for feed implementations that name the callback this way. */
   onReaction?: (reaction: CommunityReaction) => void;
 }
-
-const dateFormatter = new Intl.DateTimeFormat('en-US', {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-});
 
 const typeMeta: Record<CommunityPost['type'], {
   label: string;
@@ -42,19 +38,14 @@ const typeMeta: Record<CommunityPost['type'], {
   custom: { label: 'New progress', icon: Sparkles },
 };
 
-function displayDate(value: string): string {
-  const parsed = new Date(value.includes('T') ? value : `${value}T12:00:00`);
-  return Number.isNaN(parsed.getTime()) ? value : dateFormatter.format(parsed);
-}
-
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   return (parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : parts[0]?.[0] || '?').toUpperCase();
 }
 
-function metricText(post: CommunityPost): string | null {
+function metricText(post: CommunityPost, locale: Locale, t: (key: string, values?: Record<string, string | number>) => string): { value: string; label: string } | null {
   if (!Number.isFinite(post.metricValue)) return null;
-  const value = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(Math.abs(post.metricValue!));
+  const value = formatNumber(locale, Math.abs(post.metricValue!), { maximumFractionDigits: 1 });
   const label = post.type === 'weight_loss' || post.type === 'goal_milestone'
     ? 'kg lost'
     : post.type === 'streak'
@@ -62,38 +53,38 @@ function metricText(post: CommunityPost): string | null {
       : post.type === 'photo'
         ? 'progress photo'
         : post.metricLabel || '';
-  return `${value}${label ? ` ${label}` : ''}`;
+  return { value, label: t(label) };
 }
 
-function copyForPost(post: CommunityPost): string {
-  if (!post.generated) return post.copy || post.body || post.text || 'A new step in the journey was recorded.';
+function copyForPost(post: CommunityPost, locale: Locale, t: (key: string, values?: Record<string, string | number>) => string): string {
+  if (!post.generated) return post.copy || post.body || post.text || t('A new step in the journey was recorded.');
   const value = Number.isFinite(post.metricValue)
-    ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(Math.abs(post.metricValue!))
+    ? formatNumber(locale, Math.abs(post.metricValue!), { maximumFractionDigits: 1 })
     : '';
   switch (post.type) {
     case 'weight_loss':
-      return value ? `${value} kg lighter since the previous check-in. Slow and steady.` : 'A lighter check-in. Slow and steady.';
+      return value ? t('{value} kg lighter since the previous check-in. Slow and steady.', { value }) : t('A lighter check-in. Slow and steady.');
     case 'streak':
-      return value ? `${value} days of logging complete. Consistency beats perfection.` : 'A consistency milestone reached.';
+      return value ? t('{value} days of logging complete. Consistency beats perfection.', { value }) : t('A consistency milestone reached.');
     case 'goal_milestone':
     case 'milestone':
-      return value ? `${value} kg closer to the goal. Small steps add up.` : 'A meaningful goal milestone reached.';
+      return value ? t('{value} kg closer to the goal. Small steps add up.', { value }) : t('A meaningful goal milestone reached.');
     case 'photo':
-      return 'A new progress photo was added to the journey.';
+      return t('A new progress photo was added to the journey.');
     default:
-      return 'A new step in the journey was recorded.';
+      return t('A new step in the journey was recorded.');
   }
 }
 
-function titleForPost(post: CommunityPost, fallback: string): string {
-  if (!post.generated) return post.title || fallback;
+function titleForPost(post: CommunityPost, fallback: string, t: (key: string) => string): string {
+  if (!post.generated) return post.title || t(fallback);
   switch (post.type) {
-    case 'weight_loss': return 'A lighter step';
-    case 'streak': return 'Consistency milestone';
+    case 'weight_loss': return t('A lighter step');
+    case 'streak': return t('Consistency milestone');
     case 'goal_milestone':
-    case 'milestone': return 'Goal milestone';
-    case 'photo': return 'Progress snapshot';
-    default: return 'New progress';
+    case 'milestone': return t('Goal milestone');
+    case 'photo': return t('Progress snapshot');
+    default: return t('New progress');
   }
 }
 
@@ -106,16 +97,17 @@ export function ProgressPost({
   onReact,
   onReaction,
 }: ProgressPostProps) {
+  const { locale, t } = useLanguage();
   const meta = typeMeta[post.type] || typeMeta.custom;
   const Icon = meta.icon;
-  const displayName = author?.displayName || post.authorName || 'Healthy member';
+  const displayName = author?.displayName || post.authorName || t('Healthy member');
   const avatar = author?.initials || post.authorInitials || initials(displayName);
-  const copy = copyForPost(post);
-  const metric = metricText(post);
+  const copy = copyForPost(post, locale, t);
+  const metric = metricText(post, locale, t);
   const reactionHandler = onReact || onReaction;
 
   return (
-    <article className="progress-post surface" dir="ltr" aria-labelledby={`post-title-${post.id}`}>
+    <article className="progress-post surface" aria-labelledby={`post-title-${post.id}`}>
       <header className="progress-post-head">
         <div className="post-author">
           {author?.avatarUrl ? (
@@ -126,14 +118,14 @@ export function ProgressPost({
           <div className="post-author-copy">
             <strong>{displayName}</strong>
             <span>
-              <time dateTime={post.createdAt}>{displayDate(post.date || post.createdAt)}</time>
-              <span aria-hidden="true"> · </span>{meta.label}
+              <time dateTime={post.createdAt}>{formatDate(locale, post.date || post.createdAt, { day: 'numeric', month: 'short', year: 'numeric' })}</time>
+              <span aria-hidden="true"> · </span>{t(meta.label)}
             </span>
           </div>
         </div>
         {post.generated ? (
-          <span className="system-post-mark" title="This activity was created automatically by Healthy">
-            <CircleCheck size={13} aria-hidden="true" /> Healthy system
+          <span className="system-post-mark" title={t('This activity was created automatically by Healthy')}>
+            <CircleCheck size={13} aria-hidden="true" /> {t('Healthy system')}
           </span>
         ) : null}
       </header>
@@ -141,10 +133,10 @@ export function ProgressPost({
       <div className="progress-post-body">
         <div className="post-type-icon" aria-hidden="true"><Icon size={18} /></div>
         <div className="post-copy-wrap">
-          <h2 id={`post-title-${post.id}`}>{titleForPost(post, meta.label)}</h2>
+          <h2 id={`post-title-${post.id}`}>{titleForPost(post, meta.label, t)}</h2>
           <p>{copy}</p>
         </div>
-        {metric ? <div className="post-metric" aria-label={metric}><strong>{metric.split(' ')[0]}</strong><span>{metric.split(' ').slice(1).join(' ')}</span></div> : null}
+        {metric ? <div className="post-metric" aria-label={`${metric.value} ${metric.label}`}><strong>{metric.value}</strong><span>{metric.label}</span></div> : null}
       </div>
 
       <footer className="progress-post-foot">
@@ -154,7 +146,7 @@ export function ProgressPost({
           userReaction={userReaction}
           onReact={reactionHandler}
         />
-        {post.type === 'weight_loss' ? <span className="post-foot-note"><Flame size={14} aria-hidden="true" /> Keep going</span> : null}
+        {post.type === 'weight_loss' ? <span className="post-foot-note"><Flame size={14} aria-hidden="true" /> {t('Keep going')}</span> : null}
       </footer>
 
       <style jsx>{`

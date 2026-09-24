@@ -2,6 +2,8 @@
 
 import { Flame, Heart, Sparkles } from 'lucide-react';
 import type { CommunityPost, ReactionType } from '@/lib/types';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
+import { formatNumber } from '@/lib/i18n';
 
 export type CommunityReaction = Extract<ReactionType, 'encourage' | 'celebrate' | 'fire'>;
 
@@ -24,8 +26,6 @@ const REACTIONS: ReadonlyArray<{
   { type: 'fire', label: 'Fire', icon: Flame },
 ];
 
-const countFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
-
 /**
  * Three deliberately small, text-labelled reaction controls.  Labels remain
  * visible at mobile widths, while `aria-pressed` communicates the selected
@@ -37,10 +37,11 @@ export function ReactionBar({
   userReaction,
   onReact,
 }: ReactionBarProps) {
+  const { locale, t } = useLanguage();
   const selected = activeReaction ?? userReaction ?? null;
 
   return (
-    <div className="reaction-bar" dir="ltr" role="group" aria-label="React to this progress">
+    <div className="reaction-bar" role="group" aria-label={t('React to this progress')}>
       {REACTIONS.map(({ type, label, icon: Icon }) => {
         const count = Number(post.reactions?.[type] ?? 0);
         const isActive = selected === type;
@@ -49,13 +50,13 @@ export function ReactionBar({
             key={type}
             type="button"
             className={`reaction-button ${isActive ? 'active' : ''}`}
-            aria-label={`${label}${count > 0 ? `; ${countFormatter.format(count)} reactions` : ''}`}
+            aria-label={`${t(label)}${count > 0 ? `; ${t('{count} reactions', { count: formatNumber(locale, count) })}` : ''}`}
             aria-pressed={isActive}
             onClick={() => onReact?.(type)}
           >
             <Icon size={16} strokeWidth={isActive ? 2.4 : 1.8} aria-hidden="true" />
-            <span>{label}</span>
-            {count > 0 ? <b aria-hidden="true">{countFormatter.format(count)}</b> : null}
+            <span>{t(label)}</span>
+            {count > 0 ? <b aria-hidden="true">{formatNumber(locale, count)}</b> : null}
           </button>
         );
       })}

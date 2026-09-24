@@ -6,6 +6,7 @@ Healthy is a focused, mobile-first weight journey app built with Next.js and Sup
 
 - real username/password accounts backed by Supabase Auth;
 - daily weight check-ins stored in Postgres, with a trend chart, goal progress, streak, and history;
+- a private profile with an overview of personal progress and editable name, goal, and journey dates;
 - private progress-photo uploads stored in a protected Supabase Storage bucket;
 - an opt-in community feed generated from real progress events;
 - persistent, atomic reactions protected by Row Level Security (RLS).

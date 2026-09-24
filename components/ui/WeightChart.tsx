@@ -1,6 +1,8 @@
 import { useId } from "react";
 import type { CSSProperties } from "react";
 import type { WeightEntry } from "../../lib/types";
+import { useLanguage } from '@/components/i18n/LanguageProvider';
+import { formatDate as localizedDate, formatNumber, type Locale } from '@/lib/i18n';
 
 export type { WeightEntry } from "../../lib/types";
 
@@ -44,24 +46,7 @@ const visuallyHidden: CSSProperties = {
   width: "1px",
 };
 
-const numberFormatter = new Intl.NumberFormat("en-US", {
-  maximumFractionDigits: 1,
-});
-
-const formatWeight = (value: number) => numberFormatter.format(value);
-
-const formatDate = (date: string) => {
-  const timestamp = Date.parse(date);
-  if (!Number.isFinite(timestamp)) return date;
-
-  return new Intl.DateTimeFormat("en-US", {
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-  }).format(new Date(timestamp));
-};
-
-const normalizeEntries = (entries: WeightEntry[]): ChartPoint[] =>
+const normalizeEntries = (entries: WeightEntry[], locale: Locale): ChartPoint[] =>
   entries
     .map((entry, index) => ({
       entry,
@@ -78,14 +63,14 @@ const normalizeEntries = (entries: WeightEntry[]): ChartPoint[] =>
       entry,
       timestamp,
       value,
-      label: formatDate(entry.date),
+      label: localizedDate(locale, entry.date, { day: 'numeric', month: 'short' }),
       x: 0,
       y: 0,
     }));
 
-const makeSummary = (points: ChartPoint[], unit: string) => {
+const makeSummary = (points: ChartPoint[], unit: string, locale: Locale, t: (key: string, values?: Record<string, string | number>) => string) => {
   if (points.length === 0) {
-    return "There is not enough data to show a weight trend yet.";
+    return t('There is not enough data to show a weight trend yet.');
   }
 
   const first = points[0];
@@ -97,19 +82,20 @@ const makeSummary = (points: ChartPoint[], unit: string) => {
     point.value > highest.value ? point : highest,
   );
   const delta = last.value - first.value;
-  const absoluteDelta = formatWeight(Math.abs(delta));
+  const weight = (value: number) => formatNumber(locale, value, { maximumFractionDigits: 1 });
+  const absoluteDelta = weight(Math.abs(delta));
   const change =
     Math.abs(delta) < 0.05
-      ? "no meaningful change"
+      ? t('no meaningful change')
       : delta < 0
-        ? `${absoluteDelta} ${unit} down`
-        : `${absoluteDelta} ${unit} up`;
+        ? t('{value} {unit} down', { value: absoluteDelta, unit: t(unit) })
+        : t('{value} {unit} up', { value: absoluteDelta, unit: t(unit) });
 
   if (points.length === 1) {
-    return `One weight check-in on ${first.label}: ${formatWeight(first.value)} ${unit}.`;
+    return t('One weight check-in on {date}: {value} {unit}.', { date: first.label, value: weight(first.value), unit: t(unit) });
   }
 
-  return `From ${first.label} to ${last.label}, weight moved from ${formatWeight(first.value)} to ${formatWeight(last.value)} ${unit}; ${change}. The low was ${formatWeight(min.value)} and the high was ${formatWeight(max.value)} ${unit}.`;
+  return t('From {first} to {last}, weight moved from {start} to {end} {unit}; {change}. The low was {min} and the high was {max} {unit}.', { first: first.label, last: last.label, start: weight(first.value), end: weight(last.value), unit: t(unit), change, min: weight(min.value), max: weight(max.value) });
 };
 
 /**
@@ -122,11 +108,13 @@ export function WeightChart({
   className,
   unit = "kg",
 }: WeightChartProps) {
+  const { locale, t } = useLanguage();
+  const formatWeight = (value: number) => formatNumber(locale, value, { maximumFractionDigits: 1 });
   const id = useId().replace(/:/g, "");
   const summaryId = `weight-chart-summary-${id}`;
   const tableId = `weight-chart-table-${id}`;
-  const points = normalizeEntries(entries);
-  const summary = makeSummary(points, unit);
+  const points = normalizeEntries(entries, locale);
+  const summary = makeSummary(points, unit, locale, t);
 
   const plotWidth = VIEWBOX_WIDTH - PLOT.left - PLOT.right;
   const plotHeight = VIEWBOX_HEIGHT - PLOT.top - PLOT.bottom;
@@ -166,8 +154,8 @@ export function WeightChart({
   return (
     <figure
       className={chartClassName}
-      dir="ltr"
-      aria-label={ariaLabel}
+      dir={locale === 'fa' ? 'rtl' : 'ltr'}
+      aria-label={t(ariaLabel)}
       aria-describedby={summaryId}
       style={{ margin: 0, minWidth: 0 }}
     >
@@ -195,7 +183,7 @@ export function WeightChart({
             textAlign: "center",
           }}
         >
-          Log your first daily weight to start seeing a trend.
+          {t('Log your first daily weight to start seeing a trend.')}
         </div>
       ) : (
         <svg
@@ -256,7 +244,7 @@ export function WeightChart({
               key={`${point.entry.id ?? "entry"}-${point.entry.date}-${index}`}
             >
               <title>
-                {point.label}: {formatWeight(point.value)} {unit}
+                {point.label}: {formatWeight(point.value)} {t(unit)}
               </title>
               <circle
                 cx={point.x}
@@ -292,12 +280,12 @@ export function WeightChart({
       )}
 
       <table id={tableId} style={visuallyHidden}>
-        <caption>{ariaLabel} data table</caption>
+        <caption>{t('{label} data table', { label: t(ariaLabel) })}</caption>
         <thead>
           <tr>
-            <th scope="col">Date</th>
-            <th scope="col">Weight ({unit})</th>
-            <th scope="col">Note</th>
+            <th scope="col">{t('Date')}</th>
+            <th scope="col">{t('Weight ({unit})', { unit: t(unit) })}</th>
+            <th scope="col">{t('Note')}</th>
           </tr>
         </thead>
         <tbody>

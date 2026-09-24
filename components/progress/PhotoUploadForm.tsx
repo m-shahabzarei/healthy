@@ -6,6 +6,8 @@ import { useState } from 'react';
 import { addHostedPhoto } from '@/lib/hosted-store';
 import { toDateKey } from '@/lib/selectors';
 import type { ProgressPhoto } from '@/lib/types';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
+import { translateError } from '@/lib/i18n';
 
 const MAX_BYTES = 4 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -49,6 +51,7 @@ function compressImage(file: File): Promise<CompressedImage> {
 }
 
 export function PhotoUploadForm({ onSaved }: { onSaved?: (photo: ProgressPhoto) => void }) {
+  const { locale, t } = useLanguage();
   const [fileName, setFileName] = useState('');
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
   const [preview, setPreview] = useState('');
@@ -134,16 +137,16 @@ export function PhotoUploadForm({ onSaved }: { onSaved?: (photo: ProgressPhoto) 
   const unavailable = busy || processing;
 
   return (
-    <section className="photo-upload surface-muted" dir="ltr">
+    <section className="photo-upload surface-muted">
       <div className="section-heading">
-        <div><h2>Monthly photo</h2><p>Same spot. Once a month.</p></div>
+        <div><h2>{t('Monthly photo')}</h2><p>{t('Same spot. Once a month.')}</p></div>
         <Camera size={19} className="muted-icon" aria-hidden="true" />
       </div>
       <form onSubmit={submit} className="photo-form" aria-busy={unavailable}>
         <label className={`photo-dropzone ${preview ? 'has-preview' : ''}`} htmlFor="progress-photo">
           {preview ? (
             <>
-              <img src={preview} alt="Preview of the selected progress photo" />
+              <img src={preview} alt={t('Preview of the selected progress photo')} />
               <span
                 className="photo-remove"
                 role="button"
@@ -156,39 +159,39 @@ export function PhotoUploadForm({ onSaved }: { onSaved?: (photo: ProgressPhoto) 
                     clearFile();
                   }
                 }}
-                aria-label="Remove photo"
+                aria-label={t('Remove photo')}
               >
                 <X size={16} aria-hidden="true" />
               </span>
             </>
           ) : processing ? (
-            <><LoaderCircle size={25} className="spin" aria-hidden="true" /><strong>Preparing photo…</strong></>
+            <><LoaderCircle size={25} className="spin" aria-hidden="true" /><strong>{t('Preparing photo…')}</strong></>
           ) : (
-            <><ImagePlus size={25} aria-hidden="true" /><strong>Tap to choose a photo</strong><span>JPG, PNG, or WebP, up to 4 MB</span></>
+            <><ImagePlus size={25} aria-hidden="true" /><strong>{t('Tap to choose a photo')}</strong><span>{t('JPG, PNG, or WebP, up to 4 MB')}</span></>
           )}
           <input id="progress-photo" type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFile} disabled={unavailable} />
         </label>
         {fileName && <p className="selected-file">{fileName}</p>}
         <div className="form-grid">
           <div className="form-field">
-            <label htmlFor="photo-date">Photo date <span className="optional-label">optional</span></label>
+            <label htmlFor="photo-date">{t('Photo date')} <span className="optional-label">{t('optional')}</span></label>
             <input id="photo-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} disabled={busy} />
           </div>
           <div className="form-field">
-            <label htmlFor="photo-caption">Short note <span className="optional-label">optional</span></label>
-            <input id="photo-caption" type="text" value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="e.g. Month one" maxLength={80} disabled={busy} />
+            <label htmlFor="photo-caption">{t('Short note')} <span className="optional-label">{t('optional')}</span></label>
+            <input id="photo-caption" type="text" value={caption} onChange={(event) => setCaption(event.target.value)} placeholder={t('e.g. Month one')} maxLength={80} disabled={busy} />
           </div>
         </div>
         <label className="share-toggle">
           <input type="checkbox" checked={shareToFeed} onChange={(event) => setShareToFeed(event.target.checked)} disabled={busy} />
           <span className="check-box" aria-hidden="true" />
-          <span><strong>Show this photo in the Healthy feed</strong><small>It stays private by default. You choose when to share.</small></span>
+          <span><strong>{t('Show this photo in the Healthy feed')}</strong><small>{t('It stays private by default. You choose when to share.')}</small></span>
         </label>
-        {error && <p className="error-text" role="alert">{error}</p>}
-        {saved && <p className="success-text" role="status" aria-live="polite"><Check size={15} aria-hidden="true" /> Photo uploaded to your journey.</p>}
+        {error && <p className="error-text" role="alert">{translateError(locale, error)}</p>}
+        {saved && <p className="success-text" role="status" aria-live="polite"><Check size={15} aria-hidden="true" /> {t('Photo uploaded to your journey.')}</p>}
         <button type="submit" className="button button-primary" disabled={unavailable} aria-busy={busy}>
           {busy ? <LoaderCircle size={17} className="spin" aria-hidden="true" /> : <Camera size={17} aria-hidden="true" />}
-          {busy ? 'Uploading…' : processing ? 'Preparing…' : 'Save photo'}
+          {t(busy ? 'Uploading…' : processing ? 'Preparing…' : 'Save photo')}
         </button>
       </form>
     </section>
