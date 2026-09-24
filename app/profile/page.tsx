@@ -13,7 +13,7 @@ import { formatDate as localizedDate, formatNumber } from '@/lib/i18n';
 import './profile.css';
 
 export default function ProfilePage() {
-  const { locale, setLocale, t } = useLanguage();
+  const { locale, t } = useLanguage();
   const weight = (value: number) => formatNumber(locale, value, { maximumFractionDigits: 1 });
   const count = (value: number) => formatNumber(locale, value);
   const date = (value: string | undefined) => value ? localizedDate(locale, value, { day: 'numeric', month: 'short', year: 'numeric' }) : t('No date set');
@@ -50,21 +50,13 @@ export default function ProfilePage() {
         <section className="profile-metrics" aria-label={t('Your progress at a glance')}>
           <div className="profile-metric surface"><span className="profile-metric-icon"><Weight size={18} aria-hidden="true" /></span><span className="mono-label">{t('CURRENT WEIGHT')}</span><strong>{current > 0 ? weight(current) : '—'}<small>{current > 0 ? t('kg') : ''}</small></strong><p>{latest ? t('Last check-in {date}', { date: date(latest.date) }) : t('Your starting point')}</p></div>
           <div className="profile-metric surface"><span className="profile-metric-icon"><Target size={18} aria-hidden="true" /></span><span className="mono-label">{t('GOAL WEIGHT')}</span><strong>{target > 0 ? weight(target) : '—'}<small>{target > 0 ? t('kg') : ''}</small></strong><p>{remaining === null ? t('Set your goal below') : remaining === 0 ? t('Goal reached') : t('{value} kg to go', { value: weight(remaining) })}</p></div>
-          <div className="profile-metric surface"><span className="profile-metric-icon"><TrendingDown size={18} aria-hidden="true" /></span><span className="mono-label">{t('CHECK-INS')}</span><strong>{count(entries.length)}</strong><p>{locale === 'fa' ? t('{count} progress photos saved', { count: count(photos.length) }) : `${count(photos.length)} progress ${photos.length === 1 ? 'photo' : 'photos'} saved`}</p></div>
+          <div className="profile-metric surface"><span className="profile-metric-icon"><TrendingDown size={18} aria-hidden="true" /></span><span className="mono-label">{t('CHECK-INS')}</span><strong>{count(entries.length)}</strong><p>{count(photos.length)} progress {photos.length === 1 ? 'photo' : 'photos'} saved</p></div>
         </section>
 
         <section className="profile-goal surface" aria-labelledby="profile-goal-title">
           <div className="profile-section-head"><div><span className="mono-label">{t('THE JOURNEY')}</span><h2 id="profile-goal-title">{t('Your goal, in view.')}</h2><p>{hasGoal ? t('From {start} kg to {target} kg, one check-in at a time.', { start: weight(start), target: weight(target) }) : t('Add your starting and goal weights to see your progress.')}</p></div><Link href="/progress" className="section-link">{t('View progress')} <ArrowRight size={16} aria-hidden="true" /></Link></div>
           {hasGoal ? <ProgressBar value={progress} label={t('Progress toward your weight goal')} /> : <p className="profile-goal-empty">{t('Your goal progress will appear here after you save your details.')}</p>}
           <div className="profile-goal-meta"><span>{t('Started {date}', { date: date(user.goal.startDate) })}</span><span>{user.goal.targetDate ? t('Target {date}', { date: date(user.goal.targetDate) }) : t('At your own pace')}</span></div>
-        </section>
-
-        <section className="profile-language surface" aria-label={t('Language')}>
-          <div><strong>{t('Language')}</strong><p>{t('Choose your preferred app language.')}</p></div>
-          <div className="profile-language-options" role="group" aria-label={t('Language')}>
-            <button type="button" className={locale === 'en' ? 'active' : ''} aria-pressed={locale === 'en'} onClick={() => setLocale('en')}>English</button>
-            <button type="button" className={locale === 'fa' ? 'active' : ''} aria-pressed={locale === 'fa'} onClick={() => setLocale('fa')}>فارسی</button>
-          </div>
         </section>
 
         <ProfileEditor user={user} />

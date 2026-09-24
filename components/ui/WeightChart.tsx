@@ -154,7 +154,7 @@ export function WeightChart({
   return (
     <figure
       className={chartClassName}
-      dir={locale === 'fa' ? 'rtl' : 'ltr'}
+      dir="ltr"
       aria-label={t(ariaLabel)}
       aria-describedby={summaryId}
       style={{ margin: 0, minWidth: 0 }}

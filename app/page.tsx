@@ -2,18 +2,16 @@
 
 import Link from 'next/link';
 import { Activity, ArrowRight, Camera, Check, Sparkles, Users } from 'lucide-react';
-import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
-import { formatNumber } from '@/lib/i18n';
 
 const previewRows = [
-  { label: 'Today\'s weight', value: '84.6', unit: 'kg', tone: 'accent' },
-  { label: 'This month', value: '−2.4', unit: 'kg', tone: 'muted' },
-  { label: 'Day streak', value: '12', unit: 'days', tone: 'muted' },
+  { label: 'Today\'s weight', tone: 'accent' },
+  { label: 'This month', tone: 'muted' },
+  { label: 'Day streak', tone: 'muted' },
 ];
 
 export default function LandingPage() {
-  const { locale, t } = useLanguage();
+  const { t } = useLanguage();
   return (
     <main className="landing-page">
       <div className="landing-noise" aria-hidden="true" />
@@ -23,7 +21,6 @@ export default function LandingPage() {
           {t('Healthy')}
         </Link>
         <nav className="header-nav" aria-label={t('Main navigation')}>
-          <LanguageSwitcher />
           <Link href="/login" className="header-link">{t('Log in')}</Link>
           <Link href="/register" className="header-cta">{t('Start your journey')} <ArrowRight size={16} aria-hidden="true" /></Link>
         </nav>
@@ -43,32 +40,28 @@ export default function LandingPage() {
           <div className="hero-note"><Check size={15} aria-hidden="true" /> {t('Your real check-ins stay synced to your account.')}</div>
         </div>
 
-        <div className="hero-preview" aria-label={t('Healthy dashboard preview')}>
+        <div className="hero-preview" aria-label="Preview of an empty Healthy dashboard">
           <div className="preview-topline">
             <span className="mono-label">{t('YOUR JOURNEY / TODAY')}</span>
-            <span className="preview-status"><span className="status-dot" /> {t('On track')}</span>
+            <span className="preview-status"><span className="status-dot" /> Ready when you are</span>
           </div>
           <div className="preview-heading">
             <span className="preview-greeting">{t('Good morning, you')}</span>
-            <strong>{t('Steady looks good.')}</strong>
+            <strong>Your journey starts here.</strong>
           </div>
           <div className="preview-chart" aria-hidden="true">
             <div className="chart-grid grid-one" /><div className="chart-grid grid-two" /><div className="chart-grid grid-three" />
-            <svg viewBox="0 0 420 150" role="presentation" preserveAspectRatio="none">
-              <path d="M0 35 C35 50 45 20 78 45 S120 84 152 66 S198 32 226 64 S270 74 300 89 S344 78 372 105 S403 96 420 116" fill="none" stroke="currentColor" strokeWidth="3" />
-              <circle cx="420" cy="116" r="5" fill="var(--accent)" />
-            </svg>
-            <span className="chart-latest" dir="ltr">{formatNumber(locale, -4.8, { minimumFractionDigits: 1 })} {t('kg')}</span>
+            <span className="chart-empty">Your trend will appear after your first check-in</span>
           </div>
           <div className="preview-stat-grid">
             {previewRows.map((row) => (
               <div className={`preview-stat ${row.tone}`} key={row.label}>
                 <span>{t(row.label)}</span>
-                <strong>{formatNumber(locale, Number(row.value.replace('−', '-')), { minimumFractionDigits: row.value.includes('.') ? 1 : 0 })} <small>{t(row.unit)}</small></strong>
+                <strong>—</strong>
               </div>
             ))}
           </div>
-          <div className="preview-footer"><span>{t('Last check-in: today, 7:40 AM')}</span><span className="preview-arrow">↗</span></div>
+          <div className="preview-footer"><span>No check-ins yet</span><span className="preview-arrow">↗</span></div>
         </div>
       </section>
 

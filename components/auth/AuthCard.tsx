@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { ArrowRight, ShieldCheck } from 'lucide-react';
-import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 
 type AuthCardProps = {
@@ -16,7 +15,6 @@ export function AuthCard({ mode, children }: AuthCardProps) {
 
   return (
     <main className="auth-page">
-      <div className="auth-language-bar"><LanguageSwitcher /></div>
       <div className="auth-grid page-gutter">
         <section className="auth-panel surface" aria-label={t(isLogin ? 'Login form' : 'Registration form')}>
           <div className="auth-panel-head">

@@ -18,7 +18,7 @@ import {
 type BusyAction = 'feed' | 'refresh' | 'logout' | null;
 
 export default function SettingsPage() {
-  const { locale, setLocale, t } = useLanguage();
+  const { locale, t } = useLanguage();
   const router = useRouter();
   const { snapshot } = useSyncExternalStore(subscribeHosted, getHostedState, getHostedServerState);
   const user = snapshot.currentUser;
@@ -78,13 +78,6 @@ export default function SettingsPage() {
         <h1 className="page-title">{t('Settings.')}</h1>
         <p className="page-subtitle">{t('A few clear controls for your Healthy account.')}</p>
         <section className="settings-list surface">
-          <div className="settings-preference">
-            <strong>{t('Language')}</strong>
-            <div className="language-options" role="group" aria-label={t('Language')}>
-              <button type="button" className={`language-option ${locale === 'en' ? 'active' : ''}`} aria-pressed={locale === 'en'} onClick={() => setLocale('en')}>English</button>
-              <button type="button" className={`language-option ${locale === 'fa' ? 'active' : ''}`} aria-pressed={locale === 'fa'} onClick={() => setLocale('fa')}>فارسی</button>
-            </div>
-          </div>
           <div>
             <strong>{t('Measurement unit')}</strong>
             <span>{t('Kilograms (kg)')}</span>
@@ -124,9 +117,6 @@ export default function SettingsPage() {
         .settings-preference-copy { display: grid; gap: 5px; }
         .settings-preference-copy p { max-width: 460px; margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.65; }
         .settings-switch { min-width: 126px; flex: 0 0 auto; }
-        .language-options { display: flex; gap: 8px; }
-        .language-option { min-height: 44px; padding: 8px 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: transparent; color: var(--ink-soft); cursor: pointer; }
-        .language-option.active { background: var(--ink); color: var(--canvas); border-color: var(--ink); }
         .settings-actions p { flex-basis: 100%; margin: 2px 0 0; }
         @media (max-width: 560px) {
           .settings-preference { align-items: flex-start !important; flex-direction: column; }
