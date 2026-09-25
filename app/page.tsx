@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { Activity, ArrowRight, Camera, Check, Sparkles, Users } from 'lucide-react';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 
@@ -12,6 +14,19 @@ const previewRows = [
 
 export default function LandingPage() {
   const { t } = useLanguage();
+  const router = useRouter();
+
+  useEffect(() => {
+    const mobileViewport = window.matchMedia('(max-width: 840px)');
+    const openAppOnMobile = () => {
+      if (mobileViewport.matches) router.replace('/dashboard');
+    };
+
+    openAppOnMobile();
+    mobileViewport.addEventListener('change', openAppOnMobile);
+    return () => mobileViewport.removeEventListener('change', openAppOnMobile);
+  }, [router]);
+
   return (
     <main className="landing-page">
       <div className="landing-noise" aria-hidden="true" />
