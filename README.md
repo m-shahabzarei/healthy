@@ -69,7 +69,7 @@ Never expose a Supabase secret/service-role key through a `NEXT_PUBLIC_*` variab
 
 ## Vercel deployment
 
-The recommended setup is the Supabase integration from the Vercel Marketplace. Connect it to Production, Preview, and Development so Vercel supplies the public project URL and publishable key at build time. After changing environment variables, redeploy the current commit.
+The recommended setup is the Supabase integration from the Vercel Marketplace. For this deployment, the integration uses the `HEALTHY` prefix and supplies `NEXT_PUBLIC_HEALTHY_SUPABASE_URL`, `NEXT_PUBLIC_HEALTHY_SUPABASE_PUBLISHABLE_KEY`, `HEALTHY_SUPABASE_URL`, and the server-only `HEALTHY_SUPABASE_SECRET_KEY` to Production and Preview. Healthy also supports the integration's legacy anon and service-role keys. It prefers the matched `HEALTHY` set over any older unprefixed values. After changing environment variables, redeploy the current commit.
 
 Then configure Supabase Authentication:
 

@@ -41,6 +41,15 @@ function weight(value: unknown): number | null {
 }
 
 function configuration() {
+  const healthyUrl = process.env.HEALTHY_SUPABASE_URL?.trim();
+  const healthySecret = (
+    process.env.HEALTHY_SUPABASE_SECRET_KEY ||
+    process.env.HEALTHY_SUPABASE_SERVICE_ROLE_KEY
+  )?.trim();
+  if (healthyUrl && healthySecret) {
+    return { url: healthyUrl.replace(/\/+$/, ""), secret: healthySecret };
+  }
+
   const url = (
     process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || ""
   )
