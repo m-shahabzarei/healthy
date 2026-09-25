@@ -481,7 +481,7 @@ export class SupabaseHealthyAdapter {
           taken_on: date,
           storage_path: path,
           caption: input.caption?.trim() || null,
-          visibility: input.visibility === "feed" ? "feed" : "private",
+          visibility: "private",
         },
       });
       if (!rows?.[0]) throw new SupabaseAdapterError("Photo metadata write returned no row.", 500, "PHOTO_WRITE_EMPTY");
@@ -523,7 +523,8 @@ export class SupabaseHealthyAdapter {
 
   async listFeed(limit = 100): Promise<HostedFeedResult> {
     const posts = await this.client.data<SupabasePostRow[]>(`posts${query({ select: "*", order: "occurred_on.desc,created_at.desc", limit: Math.max(1, Math.min(limit, 200)) })}`, { accessToken: this.token() });
-    const postRows = posts || [];
+    // Older databases may still contain photo events until their schema is reapplied.
+    const postRows = (posts || []).filter((post) => (post.type as string) !== "photo");
     const userIds = Array.from(new Set(postRows.map((post) => post.user_id)));
     const profiles = userIds.length
       ? await this.client.rpc<SupabaseFeedProfileRow[]>(

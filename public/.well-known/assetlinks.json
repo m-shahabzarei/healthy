@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.vercel.healthy_ochre_sigma.twa",
+        "sha256_cert_fingerprints": ["46:A0:67:D8:4E:A9:93:0B:AC:44:3D:56:F4:89:61:BF:9F:09:BF:02:AC:98:70:32:AB:AB:62:25:C3:75:8E:01"]
+      }
+    }]

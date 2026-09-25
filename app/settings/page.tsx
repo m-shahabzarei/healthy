@@ -100,7 +100,7 @@ export default function SettingsPage() {
           <div className="settings-preference">
             <div className="settings-preference-copy">
               <strong>{t('Community feed')}</strong>
-              <p>{t('Share automatically generated progress events with the Healthy community.')}</p>
+              <p>{t('Share automatically generated weight progress events with the Healthy community. Photos stay private.')}</p>
             </div>
             <button
               type="button"

@@ -1,8 +1,6 @@
-/* eslint-disable @next/next/no-img-element -- feed avatars may be data URLs or signed hosted URLs. */
 'use client';
 
 import {
-  Camera,
   CircleCheck,
   Flame,
   Footprints,
@@ -18,7 +16,7 @@ import { formatDate, formatNumber, type Locale } from '@/lib/i18n';
 export interface ProgressPostProps {
   post: CommunityPost;
   /** Optional author override for callers rendering a denormalized post. */
-  author?: Pick<User, 'displayName' | 'initials' | 'avatarUrl'>;
+  author?: Pick<User, 'displayName' | 'initials'>;
   activeReaction?: CommunityReaction | null;
   userReaction?: CommunityReaction | null;
   onReact?: (reaction: CommunityReaction) => void;
@@ -34,7 +32,6 @@ const typeMeta: Record<CommunityPost['type'], {
   streak: { label: 'Consistency streak', icon: Footprints },
   goal_milestone: { label: 'Goal milestone', icon: Trophy },
   milestone: { label: 'Goal milestone', icon: Trophy },
-  photo: { label: 'Progress photo', icon: Camera },
   custom: { label: 'New progress', icon: Sparkles },
 };
 
@@ -50,9 +47,7 @@ function metricText(post: CommunityPost, locale: Locale, t: (key: string, values
     ? 'kg lost'
     : post.type === 'streak'
       ? 'day streak'
-      : post.type === 'photo'
-        ? 'progress photo'
-        : post.metricLabel || '';
+      : post.metricLabel || '';
   return { value, label: t(label) };
 }
 
@@ -69,8 +64,6 @@ function copyForPost(post: CommunityPost, locale: Locale, t: (key: string, value
     case 'goal_milestone':
     case 'milestone':
       return value ? t('{value} kg closer to the goal. Small steps add up.', { value }) : t('A meaningful goal milestone reached.');
-    case 'photo':
-      return t('A new progress photo was added to the journey.');
     default:
       return t('A new step in the journey was recorded.');
   }
@@ -83,7 +76,6 @@ function titleForPost(post: CommunityPost, fallback: string, t: (key: string) =>
     case 'streak': return t('Consistency milestone');
     case 'goal_milestone':
     case 'milestone': return t('Goal milestone');
-    case 'photo': return t('Progress snapshot');
     default: return t('New progress');
   }
 }
@@ -110,11 +102,7 @@ export function ProgressPost({
     <article className="progress-post surface" aria-labelledby={`post-title-${post.id}`}>
       <header className="progress-post-head">
         <div className="post-author">
-          {author?.avatarUrl ? (
-            <img className="post-avatar" src={author.avatarUrl} alt="" />
-          ) : (
-            <span className="post-avatar" aria-hidden="true">{avatar}</span>
-          )}
+          <span className="post-avatar" aria-hidden="true">{avatar}</span>
           <div className="post-author-copy">
             <strong>{displayName}</strong>
             <span>

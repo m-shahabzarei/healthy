@@ -36,6 +36,7 @@ SUPABASE_SECRET_KEY=YOUR_SERVER_ONLY_SECRET_KEY
 ```
 
 Apply [`supabase/schema.sql`](./supabase/schema.sql) in the Supabase SQL Editor before starting the app. The migration creates the application tables, policies, functions, triggers, and the private `progress-photos` bucket.
+Reapply the same schema after upgrading an existing installation: it makes previously shared photos private and removes their community posts.
 
 Because the UI intentionally uses username/password instead of collecting email addresses, Healthy maps each normalized username to an internal Supabase Auth identity under `accounts.healthy.invalid`. A server-only registration route uses `SUPABASE_SECRET_KEY` to create that identity as already confirmed; the secret never enters the client bundle. Usernames are therefore treated as immutable account identifiers, and these internal addresses cannot receive password-recovery messages.
 
@@ -77,8 +78,8 @@ The icon source is `public/icons/mark.svg`. Its matching raster assets are check
 - `profiles`, `weights`, `photos`, `posts`, and `reactions` all use RLS.
 - Weight rows and private photo metadata can be read only by their owner.
 - Photo files live in the private `progress-photos` bucket and are displayed through short-lived signed URLs.
-- The database generates and reconciles social activity after relevant weight/photo/profile changes.
-- Feed visibility requires the profile's `feed_opt_in` setting; private photos never create public photo events.
+- The database generates and reconciles social activity after relevant weight and profile changes.
+- Feed visibility requires the profile's `feed_opt_in` setting. Progress photos always remain private and never create community posts.
 - Reactions are toggled atomically by the `toggle_reaction` RPC.
 
 Never expose a Supabase secret/service-role key through a `NEXT_PUBLIC_*` variable. The browser runtime needs only the project URL and anon/publishable key; authorization comes from the signed-in user's access token plus RLS.

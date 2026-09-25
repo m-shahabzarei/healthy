@@ -57,7 +57,6 @@ export function PhotoUploadForm({ onSaved }: { onSaved?: (photo: ProgressPhoto) 
   const [preview, setPreview] = useState('');
   const [date, setDate] = useState('');
   const [caption, setCaption] = useState('');
-  const [shareToFeed, setShareToFeed] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -117,7 +116,6 @@ export function PhotoUploadForm({ onSaved }: { onSaved?: (photo: ProgressPhoto) 
         {
           date: date || toDateKey(new Date()),
           caption: caption.trim() || undefined,
-          visibility: shareToFeed ? 'feed' : 'private',
         },
         fileName,
       );
@@ -126,7 +124,6 @@ export function PhotoUploadForm({ onSaved }: { onSaved?: (photo: ProgressPhoto) 
       clearFile();
       setCaption('');
       setDate('');
-      setShareToFeed(false);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Could not upload the photo. Please try again.');
     } finally {
@@ -182,11 +179,7 @@ export function PhotoUploadForm({ onSaved }: { onSaved?: (photo: ProgressPhoto) 
             <input id="photo-caption" type="text" value={caption} onChange={(event) => setCaption(event.target.value)} placeholder={t('e.g. Month one')} maxLength={80} disabled={busy} />
           </div>
         </div>
-        <label className="share-toggle">
-          <input type="checkbox" checked={shareToFeed} onChange={(event) => setShareToFeed(event.target.checked)} disabled={busy} />
-          <span className="check-box" aria-hidden="true" />
-          <span><strong>{t('Show this photo in the Healthy feed')}</strong><small>{t('It stays private by default. You choose when to share.')}</small></span>
-        </label>
+        <p className="photo-privacy-note">{t('Your progress photos are private and only visible to you.')}</p>
         {error && <p className="error-text" role="alert">{translateError(locale, error)}</p>}
         {saved && <p className="success-text" role="status" aria-live="polite"><Check size={15} aria-hidden="true" /> {t('Photo uploaded to your journey.')}</p>}
         <button type="submit" className="button button-primary" disabled={unavailable} aria-busy={busy}>

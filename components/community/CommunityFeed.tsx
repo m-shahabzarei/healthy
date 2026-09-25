@@ -11,13 +11,12 @@ import type { CommunityReaction } from './ReactionBar';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { formatNumber, translateError } from '@/lib/i18n';
 
-export type CommunityFilter = 'all' | 'weight_loss' | 'records' | 'photo';
+export type CommunityFilter = 'all' | 'weight_loss' | 'records';
 
 const FILTERS: ReadonlyArray<{ key: CommunityFilter; label: string }> = [
   { key: 'all', label: 'All' },
   { key: 'weight_loss', label: 'Weight loss' },
   { key: 'records', label: 'Records' },
-  { key: 'photo', label: 'Photos' },
 ];
 
 const reactionCopy: Record<CommunityReaction, { on: string; off: string }> = {
@@ -36,7 +35,6 @@ function sortPosts(posts: CommunityPost[]): CommunityPost[] {
 function matchesFilter(post: CommunityPost, filter: CommunityFilter): boolean {
   if (filter === 'all') return true;
   if (filter === 'weight_loss') return post.type === 'weight_loss';
-  if (filter === 'photo') return post.type === 'photo';
   return post.type === 'streak' || post.type === 'goal_milestone' || post.type === 'milestone';
 }
 
@@ -46,8 +44,6 @@ function filterEmptyCopy(filter: CommunityFilter): string {
       return 'When your latest check-in is lighter, that small win will appear here.';
     case 'records':
       return 'A seven-day streak or a goal milestone will show up here.';
-    case 'photo':
-      return 'Monthly photos you choose to share with the feed appear here.';
     default:
       return 'No activity yet. Log your first check-in from the dashboard.';
   }

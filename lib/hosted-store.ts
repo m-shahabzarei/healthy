@@ -586,7 +586,6 @@ export async function addHostedPhoto(
         {
           date,
           caption: input.caption,
-          visibility: input.visibility,
         },
         originalName,
       ),

@@ -13,7 +13,6 @@ export type PostType =
   | "weight_loss"
   | "streak"
   | "goal_milestone"
-  | "photo"
   | "milestone"
   | "custom";
 
@@ -76,7 +75,7 @@ export interface ProgressPhoto {
   url?: string;
   src?: string;
   caption?: string;
-  visibility?: "private" | "feed";
+  visibility?: "private";
   createdAt: string;
 }
 

@@ -39,14 +39,14 @@ create table if not exists public.photos (
   taken_on date not null,
   storage_path text not null unique,
   caption text check (caption is null or char_length(caption) <= 120),
-  visibility text not null default 'private' check (visibility in ('private', 'feed')),
+  visibility text not null default 'private' check (visibility = 'private'),
   created_at timestamptz not null default timezone('utc', now())
 );
 
 create table if not exists public.posts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
-  type text not null check (type in ('weight_loss', 'streak', 'goal_milestone', 'photo', 'milestone', 'custom')),
+  type text not null check (type in ('weight_loss', 'streak', 'goal_milestone', 'milestone', 'custom')),
   occurred_on date not null,
   body text not null check (char_length(body) between 1 and 1000),
   title text check (title is null or char_length(title) <= 120),
@@ -215,8 +215,8 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_user();
 
--- Rebuild every automatic feed event from canonical profile, weight, and photo
--- data. The function is deliberately not callable by browser roles: source
+-- Rebuild every automatic feed event from canonical profile and weight data.
+-- The function is deliberately not callable by browser roles: source
 -- table triggers are the only writers of generated posts.
 create or replace function public.rebuild_generated_posts(p_user_id uuid)
 returns void
@@ -302,24 +302,6 @@ begin
         and profile_row.goal_weight_kg is not null
         and profile_row.start_weight_kg > profile_row.goal_weight_kg
     ),
-    first_feed_photos as (
-      select ranked.*
-      from (
-        select
-          ph.id,
-          ph.taken_on,
-          ph.created_at,
-          to_char(ph.taken_on, 'YYYY-MM') as calendar_month,
-          row_number() over (
-            partition by date_trunc('month', ph.taken_on::timestamp)
-            order by ph.taken_on, ph.created_at, ph.id
-          ) as month_position
-        from public.photos ph
-        where ph.user_id = p_user_id
-          and ph.visibility = 'feed'
-      ) ranked
-      where ranked.month_position = 1
-    ),
     candidates as (
       select
         'weight_loss'::text as type,
@@ -368,19 +350,6 @@ begin
       from weight_metrics wm
       where wm.reached_kg > 0
         and wm.reached_kg > wm.previously_reached_kg
-
-      union all
-
-      select
-        'photo'::text,
-        fp.taken_on,
-        fp.created_at,
-        'I added a new progress photo; small changes deserve to be seen.'::text,
-        'Visual proof'::text,
-        null::numeric,
-        'progress photo'::text,
-        p_user_id::text || ':photo:' || fp.calendar_month
-      from first_feed_photos fp
     )
     select *
     from candidates
@@ -520,9 +489,16 @@ after insert or update or delete on public.weights
 for each row execute function public.reconcile_generated_posts_from_source();
 
 drop trigger if exists photos_reconcile_generated_posts on public.photos;
-create trigger photos_reconcile_generated_posts
-after insert or update or delete on public.photos
-for each row execute function public.reconcile_generated_posts_from_source();
+
+-- Existing shared photos stay in the private journal. Remove their old feed
+-- activity and tighten the constraints on installations with the old schema.
+update public.photos set visibility = 'private' where visibility <> 'private';
+delete from public.posts where type = 'photo';
+alter table public.photos drop constraint if exists photos_visibility_check;
+alter table public.photos add constraint photos_visibility_check check (visibility = 'private');
+alter table public.posts drop constraint if exists posts_type_check;
+alter table public.posts add constraint posts_type_check
+  check (type in ('weight_loss', 'streak', 'goal_milestone', 'milestone', 'custom'));
 
 drop trigger if exists profiles_reconcile_generated_posts_on_insert on public.profiles;
 create trigger profiles_reconcile_generated_posts_on_insert
@@ -585,15 +561,10 @@ using (user_id = (select auth.uid()))
 with check (user_id = (select auth.uid()));
 
 drop policy if exists photos_owner_or_feed on public.photos;
-create policy photos_owner_or_feed on public.photos
+drop policy if exists photos_owner_only on public.photos;
+create policy photos_owner_only on public.photos
 for select to authenticated
-using (
-  user_id = (select auth.uid())
-  or (
-    visibility = 'feed'
-    and public.feed_profile_is_visible(photos.user_id)
-  )
-);
+using (user_id = (select auth.uid()));
 
 drop policy if exists photos_owner_write on public.photos;
 create policy photos_owner_write on public.photos
@@ -768,20 +739,12 @@ with check (
 );
 
 drop policy if exists progress_photos_select_own_or_feed on storage.objects;
-create policy progress_photos_select_own_or_feed on storage.objects
+drop policy if exists progress_photos_select_own_folder on storage.objects;
+create policy progress_photos_select_own_folder on storage.objects
 for select to authenticated
 using (
   bucket_id = 'progress-photos'
-  and (
-    (storage.foldername(name))[1] = (select auth.uid())::text
-    or exists (
-      select 1
-      from public.photos ph
-      where ph.storage_path = name
-        and ph.visibility = 'feed'
-        and public.feed_profile_is_visible(ph.user_id)
-    )
-  )
+  and (storage.foldername(name))[1] = (select auth.uid())::text
 );
 
 drop policy if exists progress_photos_update_own_folder on storage.objects;
@@ -836,19 +799,9 @@ begin
         or (generated = false and activity_key is null)
       );
   end if;
-
-  if not exists (
-    select 1
-    from pg_constraint
-    where conrelid = 'public.posts'::regclass
-      and conname = 'posts_generated_type_check'
-  ) then
-    alter table public.posts
-      add constraint posts_generated_type_check
-      check (
-        generated = false
-        or type in ('weight_loss', 'streak', 'goal_milestone', 'photo')
-      );
-  end if;
 end
 $$;
+
+alter table public.posts drop constraint if exists posts_generated_type_check;
+alter table public.posts add constraint posts_generated_type_check
+  check (generated = false or type in ('weight_loss', 'streak', 'goal_milestone'));

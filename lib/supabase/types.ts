@@ -91,7 +91,6 @@ export interface WeightEntryInput {
 export interface ProgressPhotoInput {
   date: string;
   caption?: string;
-  visibility?: "private" | "feed";
 }
 
 export interface HostedProgressPhoto extends ProgressPhoto {
@@ -146,7 +145,7 @@ export interface SupabasePhotoRow {
   taken_on: string;
   storage_path: string;
   caption: string | null;
-  visibility: "private" | "feed";
+  visibility: "private";
   created_at: string;
 }
 

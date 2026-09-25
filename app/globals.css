@@ -273,13 +273,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .photo-remove { position: absolute; top: 10px; inset-inline-end: 10px; width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--ink); background: rgba(8,8,8,.85); color: var(--ink); cursor: pointer; }
 .selected-file { color: var(--ink-faint); font-size: 11px; margin: -8px 0 0; direction: ltr; text-align: left; }
 .photo-upload .button { align-self: flex-start; }
-.share-toggle { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; color: var(--ink-soft); font-size: 12px; }
-.share-toggle input { position: absolute; opacity: 0; pointer-events: none; }
-.check-box { width: 20px; height: 20px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid var(--line-strong); background: var(--canvas); }
-.share-toggle input:checked + .check-box { border-color: var(--accent); background: var(--accent); }
-.share-toggle input:checked + .check-box::after { content: '✓'; color: var(--canvas); font-size: 13px; font-weight: 700; }
-.share-toggle input:focus-visible + .check-box { outline: 2px solid var(--focus); outline-offset: 3px; }
-.share-toggle span:last-child { display: flex; flex-direction: column; gap: 2px; }.share-toggle strong { color: var(--ink); font-weight: 500; }.share-toggle small { color: var(--ink-faint); font-size: 10px; }
+.photo-privacy-note { margin: 0; color: var(--ink-faint); font-size: 11px; line-height: 1.6; }
 .photo-compare { padding: 24px; margin-top: 18px; }
 .compare-grid { display: grid; grid-template-columns: 1fr 46px 1fr; align-items: center; gap: 15px; }
 .compare-frame { aspect-ratio: 1 / 1.1; border: 1px solid var(--line-strong); overflow: hidden; background: var(--surface-2); }
