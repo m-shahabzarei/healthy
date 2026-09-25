@@ -84,11 +84,7 @@ export function CommunityFeed() {
   return (
     <div className="community-page app-container">
       <header className="community-header">
-        <div>
-          <p className="eyebrow"><span className="eyebrow-line" /> {t('Together, steady and kind')}</p>
-          <h1 className="page-title">{t('Our circle.')}</h1>
-          <p className="page-subtitle">{t('Small wins from the Healthy community, for the days you need a little extra momentum.')}</p>
-        </div>
+        <h1 className="sr-only">{t('Community progress feed')}</h1>
         <div className="community-count" aria-label={t('{count} activities in the feed', { count: formatNumber(locale, posts.length) })}>
           <Users size={18} aria-hidden="true" />
           <strong>{formatNumber(locale, posts.length)}</strong>
@@ -152,8 +148,7 @@ export function CommunityFeed() {
 
       <style jsx global>{`
         .community-page { max-width: 900px; }
-        .community-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 22px; margin-bottom: 28px; }
-        .community-header .eyebrow { margin: 0 0 16px; font-size: 17px; }
+        .community-header { display: flex; justify-content: flex-end; margin-bottom: 28px; }
         .community-count { min-width: 105px; display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 8px; row-gap: 0; padding: 12px 14px; border: 1px solid var(--line, #333333); color: var(--ink-faint, #999999); }
         .community-count svg { grid-row: span 2; color: var(--accent, #f7f7f7); }
         .community-count strong { color: var(--ink, #f7f7f7); font-family: 'Space Grotesk', sans-serif; font-size: 27px; line-height: .9; }
@@ -176,8 +171,6 @@ export function CommunityFeed() {
         .community-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 42px 20px; }
         .community-empty .button { margin-top: 12px; }
         @media (max-width: 600px) {
-          .community-header { align-items: flex-start; flex-direction: column; gap: 17px; }
-          .community-count { align-self: flex-start; }
           .community-note { padding-inline: 14px; }
           .community-toolbar { align-items: flex-start; flex-direction: column; gap: 8px; }
           .community-result-count { align-self: flex-end; margin-top: -5px; }

@@ -34,15 +34,14 @@ export default function ProfilePage() {
   return (
     <AppShell active="profile">
       <div className="profile-page app-container">
-        <header className="profile-page-head">
-          <div><p className="eyebrow"><span className="eyebrow-line" /> {t('YOUR SPACE')}</p><h1 className="page-title">{t('Your profile.')}</h1><p className="page-subtitle">{t('A clear view of where you started, where you are, and what comes next.')}</p></div>
+        <div className="profile-page-head">
           <div className="profile-head-actions"><Link href="/profile#profile-details" className="button button-primary"><PencilLine size={17} aria-hidden="true" /> {t('Edit profile')}</Link><Link href="/settings" className="button button-ghost profile-settings"><Settings2 size={17} aria-hidden="true" /> {t('Settings')}</Link></div>
-        </header>
+        </div>
 
         <section className="profile-hero surface" aria-label={t('Profile summary')}>
           <div className="profile-identity">
             <span className="profile-avatar" aria-hidden="true">{user.initials || user.displayName.slice(0, 1)}</span>
-            <div className="profile-identity-copy"><span className="mono-label">{t('HEALTHY MEMBER')}</span><h2>{user.displayName}</h2><p>@{user.username}</p></div>
+            <div className="profile-identity-copy"><span className="mono-label">{t('HEALTHY MEMBER')}</span><h1>{user.displayName}</h1><p>@{user.username}</p></div>
           </div>
           <div className="profile-hero-bottom"><span><CalendarDays size={16} aria-hidden="true" /> {t('Member since {date}', { date: date(user.createdAt) })}</span><span><LockKeyhole size={16} aria-hidden="true" /> {t('Your personal progress is private')}</span></div>
         </section>

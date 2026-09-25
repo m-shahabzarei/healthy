@@ -53,7 +53,23 @@ Open `http://localhost:3000`.
 pnpm exec tsc --noEmit
 pnpm exec next lint
 pnpm exec next build
+pnpm check:pwa
 ```
+
+## PWA and Android APK with PWABuilder
+
+Healthy ships a web app manifest at `/manifest.webmanifest`, a root service worker at `/sw.js`, a branded favicon and Apple touch icon, and 192/512 pixel regular and maskable Android icons. The installed app opens `/dashboard`; signed-out users are taken to login. The service worker keeps only public versioned assets and the offline information page. Account pages, authentication, Supabase requests, and user data are never stored in Cache Storage. Viewing and changing account data requires a connection.
+
+To package the app for Android:
+
+1. Deploy the current production build to a stable **HTTPS** domain and verify that `/manifest.webmanifest`, `/sw.js`, `/offline.html`, and each manifest icon return successfully. `localhost` is suitable for local PWA testing but is not a URL PWABuilder can package for other users.
+2. Open [PWABuilder](https://www.pwabuilder.com/), enter the production URL, and review its manifest, service worker, and security checks. Select **Package for stores → Android** and set the permanent Android package ID and app name. Download the generated Android package, including its APK for device testing.
+3. Use the package name and signing certificate fingerprint from the **final APK signing key** to publish the generated Digital Asset Links file at `https://YOUR_DOMAIN/.well-known/assetlinks.json`. In this Next.js project, put that file at `public/.well-known/assetlinks.json` and redeploy. If Google Play re-signs the app, include its app-signing certificate fingerprint as well. Check that the deployed JSON is reachable without a redirect.
+4. Install the APK on a device. Verify launch, sign-in, navigation, account syncing, offline message, and reconnect. A correctly verified Trusted Web Activity opens without browser chrome; if a browser bar appears, recheck the package ID, signing fingerprint, domain, and asset links file.
+
+The APK is a Trusted Web Activity backed by the hosted site, so the deployed web app must remain available. App code updates are delivered through the site; the offline page explains the connection requirement. The signing certificate information is produced during Android packaging and cannot be filled in reliably before choosing the final package/key.
+
+The icon source is `public/icons/mark.svg`. Its matching raster assets are checked in; regenerate them with `python scripts/generate-pwa-icons.py` (requires Pillow). Run `pnpm check:pwa` after changing the manifest or icons.
 
 ## Data model and security
 

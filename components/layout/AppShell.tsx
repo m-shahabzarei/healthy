@@ -81,7 +81,7 @@ export function AppShell({ children, active }: AppShellProps) {
   return (
     <div className="app-page">
       <aside className="desktop-sidebar">
-        <Link href="/dashboard" className="brand-mark" aria-label={t('Healthy home')}><span className="brand-dot" aria-hidden="true" />{t('Healthy')}</Link>
+        <Link href="/dashboard" className="brand-mark" aria-label={t('Healthy home')}><span className="brand-icon" aria-hidden="true" />{t('Healthy')}</Link>
         <Link href="/profile" className="sidebar-profile" aria-label={t("Open {name}'s profile", { name: user.displayName })}><span className="avatar avatar-lg">{user.initials || user.displayName.slice(0, 1)}</span><div><strong>{user.displayName}</strong><span>@{user.username}</span></div></Link>
         <div className="sidebar-rule" />
         <BottomNav active={active} />
@@ -92,7 +92,7 @@ export function AppShell({ children, active }: AppShellProps) {
       </aside>
       <div className="app-main">
         <header className="mobile-app-header">
-          <Link href="/dashboard" className="brand-mark" aria-label={t('Healthy home')}><span className="brand-dot" aria-hidden="true" />{t('Healthy')}</Link>
+          <Link href="/dashboard" className="brand-mark" aria-label={t('Healthy home')}><span className="brand-icon" aria-hidden="true" />{t('Healthy')}</Link>
           <Link href="/profile" className="mobile-avatar" aria-label={t('Open profile')}>{user.initials || user.displayName.slice(0, 1)}</Link>
         </header>
         <main className="app-content">

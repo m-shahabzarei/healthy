@@ -32,7 +32,7 @@ export default function LandingPage() {
       <div className="landing-noise" aria-hidden="true" />
       <header className="site-header page-gutter">
         <Link href="/" className="brand-mark" aria-label={t('Healthy home')}>
-          <span className="brand-dot" aria-hidden="true" />
+          <span className="brand-icon" aria-hidden="true" />
           {t('Healthy')}
         </Link>
         <nav className="header-nav" aria-label={t('Main navigation')}>

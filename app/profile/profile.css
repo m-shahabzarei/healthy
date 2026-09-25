@@ -1,6 +1,5 @@
 .profile-page { max-width: 1080px; }
-.profile-page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 34px; }
-.profile-page-head .eyebrow { margin: 0 0 16px; font-size: 13px; letter-spacing: .14em; }
+.profile-page-head { display: flex; justify-content: flex-end; margin-bottom: 34px; }
 .profile-head-actions { display: flex; flex-wrap: wrap; gap: 10px; flex: 0 0 auto; }
 .profile-settings { flex: 0 0 auto; }
 .profile-hero { position: relative; overflow: hidden; padding: clamp(24px, 4vw, 40px); background: radial-gradient(circle at 90% -10%, rgba(255,255,255,.085), transparent 35%), var(--surface); }
@@ -8,7 +7,7 @@
 .profile-identity { display: flex; align-items: center; gap: clamp(18px, 3vw, 30px); min-width: 0; }
 .profile-avatar { display: grid; place-items: center; flex: 0 0 auto; width: clamp(78px, 11vw, 112px); aspect-ratio: 1; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--surface-2); color: var(--ink); font-family: 'Space Grotesk', sans-serif; font-size: clamp(32px, 5vw, 48px); line-height: 1; }
 .profile-identity-copy { min-width: 0; }
-.profile-identity-copy h2 { overflow-wrap: anywhere; margin: 9px 0 3px; font-family: 'Space Grotesk', sans-serif; font-size: clamp(32px, 5vw, 52px); line-height: 1.05; letter-spacing: -.035em; }
+.profile-identity-copy h1 { overflow-wrap: anywhere; margin: 9px 0 3px; font-family: 'Space Grotesk', sans-serif; font-size: clamp(32px, 5vw, 52px); line-height: 1.05; letter-spacing: -.035em; }
 .profile-identity-copy p { margin: 0; color: var(--ink-soft); font-size: 14px; overflow-wrap: anywhere; }
 .profile-hero-bottom { display: flex; flex-wrap: wrap; gap: 10px 30px; margin-top: 32px; padding-top: 18px; border-top: 1px solid var(--line); }
 .profile-hero-bottom span { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 12px; }
@@ -48,7 +47,7 @@
 .profile-bottom-link strong { font-size: 14px; font-weight: 600; }
 .profile-bottom-link small { color: var(--ink-faint); font-size: 11px; }
 @media (max-width: 700px) {
-  .profile-page-head { align-items: flex-start; flex-direction: column; margin-bottom: 26px; }
+  .profile-page-head { justify-content: flex-start; margin-bottom: 26px; }
   .profile-settings { min-height: 44px; }
   .profile-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
   .profile-metric { padding: 17px 15px; }

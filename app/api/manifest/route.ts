@@ -1,17 +1,6 @@
-import { NextResponse } from 'next/server';
-import { translate } from '@/lib/i18n';
+import { NextRequest, NextResponse } from 'next/server';
 
-export function GET() {
-  return NextResponse.json({
-    name: translate('en', 'Healthy — Your weight, your pace'),
-    short_name: translate('en', 'Healthy'),
-    description: translate('en', 'Daily weight tracking, progress photos, and quiet encouragement'),
-    start_url: '/',
-    display: 'standalone',
-    background_color: '#080808',
-    theme_color: '#080808',
-    lang: 'en',
-    dir: 'ltr',
-    icons: [],
-  }, { headers: { 'Content-Type': 'application/manifest+json; charset=utf-8', 'Cache-Control': 'private, no-store' } });
+// Keep older manifest URLs working after moving to the standard public URL.
+export function GET(request: NextRequest) {
+  return NextResponse.redirect(new URL('/manifest.webmanifest', request.url), 308);
 }
