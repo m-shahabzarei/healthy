@@ -18,7 +18,7 @@ import {
 type BusyAction = 'feed' | 'refresh' | 'logout' | null;
 
 export default function SettingsPage() {
-  const { locale, t } = useLanguage();
+  const { locale, setLocale, t } = useLanguage();
   const router = useRouter();
   const { snapshot } = useSyncExternalStore(subscribeHosted, getHostedState, getHostedServerState);
   const user = snapshot.currentUser;
@@ -82,6 +82,21 @@ export default function SettingsPage() {
             <strong>{t('Measurement unit')}</strong>
             <span>{t('Kilograms (kg)')}</span>
           </div>
+          <div className="settings-preference settings-language">
+            <div className="settings-preference-copy">
+              <label htmlFor="app-language">{t('Language')}</label>
+              <p id="app-language-help">{t('Choose your preferred app language.')}</p>
+            </div>
+            <select
+              id="app-language"
+              value={locale}
+              onChange={(event) => setLocale(event.target.value === 'fa' ? 'fa' : 'en')}
+              aria-describedby="app-language-help"
+            >
+              <option value="en">English</option>
+              <option value="fa">فارسی</option>
+            </select>
+          </div>
           <div className="settings-preference">
             <div className="settings-preference-copy">
               <strong>{t('Community feed')}</strong>
@@ -115,11 +130,14 @@ export default function SettingsPage() {
       </div>
       <style jsx>{`
         .settings-preference-copy { display: grid; gap: 5px; }
+        .settings-preference-copy label { font-size: 14px; font-weight: 600; cursor: pointer; }
         .settings-preference-copy p { max-width: 460px; margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.65; }
+        .settings-language select { min-width: 160px; min-height: 44px; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--ink); font-size: 14px; cursor: pointer; }
         .settings-switch { min-width: 126px; flex: 0 0 auto; }
         .settings-actions p { flex-basis: 100%; margin: 2px 0 0; }
         @media (max-width: 560px) {
           .settings-preference { align-items: flex-start !important; flex-direction: column; }
+          .settings-language select { width: 100%; }
         }
       `}</style>
     </AppShell>
